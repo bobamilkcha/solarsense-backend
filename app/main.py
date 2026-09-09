@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -6,6 +7,7 @@ from app.core.database.database import sessionmanager
 from app.core.middlewares import LoggingMiddleware
 from app.modules.auth.exceptions import AuthError
 from app.modules.auth.router import router as auth_router
+from app.modules.readings.mqtt import MQTTSubscriber
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -13,7 +15,10 @@ from fastapi.responses import JSONResponse
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
+    mqtt_subscriber = MQTTSubscriber(asyncio.get_running_loop())
+    mqtt_subscriber.connect()
     yield
+    mqtt_subscriber.disconnect()
     await sessionmanager.close()
 
 

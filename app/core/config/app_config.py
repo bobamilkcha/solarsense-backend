@@ -66,6 +66,13 @@ class AppConfig(BaseConfig):
             path=self.DATABASE_NAME,
         )
 
+    MQTT_BROKER_HOST: str = "localhost"
+    MQTT_BROKER_PORT: int = 8883
+    MQTT_USERNAME: str = ""
+    MQTT_PASSWORD: str = ""
+    MQTT_USE_TLS: bool = True
+    MQTT_READINGS_TOPIC: str = "solarsense/+/readings"
+
     MINIO_USER: str = "minioadmin"
     MINIO_PASSWORD: str = "minioadmin"
     MINIO_API_PORT: int = 9000
