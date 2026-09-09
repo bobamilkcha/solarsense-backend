@@ -1,0 +1,55 @@
+[tools]
+python = "3.14.5"
+
+[tasks.init]
+description = "Set up a fresh clone: install deps (incl. dev) and git hooks"
+run = [
+    "uv sync",
+    "uv run pre-commit install",
+]
+
+[tasks.db-up]
+description = "Run the database container"
+run = "docker compose up --wait -d db"
+
+[tasks.db-down]
+description = "Stop the database container"
+run = "docker compose down db"
+
+[tasks.docker-check]
+description = "Check container statuses"
+run = "docker compose ps"
+
+[tasks.db-reset]
+description = "Reset the database"
+run = "docker compose down db -v && docker compose up db -d"
+
+[tasks.migrate]
+description = "Run database migrations"
+depends=["db-up"]
+run = "uv run alembic upgrade head"
+
+[tasks.generate-migration]
+description = "Generate Migrations"
+run = "uv run alembic revision --autogenerate -m \"$@\""
+
+[tasks.generate-secret-key]
+description = "Generate a secret key"
+run = "uv run python -c \"import secrets; print(secrets.token_hex(32))\""
+
+[tasks.dev]
+description = "Run the development server"
+depends=["migrate"]
+run = "uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+[tasks.test]
+description = "Run the test suite"
+run = "uv run pytest $@"
+
+[tasks.test-cov]
+description = "Run tests with a terminal coverage report"
+run = "uv run pytest --cov=app --cov-report=term-missing $@"
+
+[tasks.test-cov-html]
+description = "Run tests and write an HTML coverage report to htmlcov/"
+run = "uv run pytest --cov=app --cov-report=html $@"

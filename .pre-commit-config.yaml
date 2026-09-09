@@ -1,0 +1,46 @@
+# Pre-commit + pre-push hooks.
+# Install once after cloning:  mise run init   (or: uv run pre-commit install)
+default_install_hook_types: [pre-commit, pre-push]
+default_stages: [pre-commit]
+
+repos:
+  # ── Generic hygiene ────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: detect-private-key
+
+  # ── Ruff: lint (autofix) + format ──────────────────────────────────
+  # Keep rev in sync with the ruff version in pyproject.toml dev deps.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.16
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  # ── ty: type check (whole project, runs on commit) ─────────────────
+  - repo: local
+    hooks:
+      - id: ty
+        name: ty type check
+        entry: uv run ty check
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      # ── Full test suite (runs on push only) ──────────────────────
+      # Integration tests use testcontainers — Docker must be running.
+      - id: pytest
+        name: pytest (full suite)
+        entry: uv run pytest
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-push]
