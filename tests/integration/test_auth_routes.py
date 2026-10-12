@@ -5,6 +5,8 @@ the request body. The httpx AsyncClient persists Set-Cookie across requests, so
 once a test registers/logs in, the cookie is sent automatically.
 """
 
+from typing import Any
+
 from httpx import AsyncClient
 
 
@@ -36,7 +38,7 @@ async def test_register_rejects_short_password(
 
 
 async def test_register_rejects_duplicate_email(
-    client: AsyncClient, credentials: dict[str, str], registered: dict[str, object]
+    client: AsyncClient, credentials: dict[str, str], registered: dict[str, Any]
 ) -> None:
     resp = await client.post("/auth/register", json=credentials)
     assert resp.status_code == 409
@@ -44,7 +46,7 @@ async def test_register_rejects_duplicate_email(
 
 
 async def test_login_returns_access_and_sets_cookie(
-    client: AsyncClient, credentials: dict[str, str], registered: dict[str, object]
+    client: AsyncClient, credentials: dict[str, str], registered: dict[str, Any]
 ) -> None:
     resp = await client.post("/auth/login", json=credentials)
 
@@ -54,7 +56,7 @@ async def test_login_returns_access_and_sets_cookie(
 
 
 async def test_login_rejects_wrong_password(
-    client: AsyncClient, credentials: dict[str, str], registered: dict[str, object]
+    client: AsyncClient, credentials: dict[str, str], registered: dict[str, Any]
 ) -> None:
     resp = await client.post("/auth/login", json={**credentials, "password": "wrong"})
     assert resp.status_code == 401
@@ -74,7 +76,7 @@ async def test_login_rejects_missing_field(client: AsyncClient) -> None:
 
 
 async def test_refresh_rotates_and_invalidates_old_token(
-    client: AsyncClient, registered: dict[str, object]
+    client: AsyncClient, registered: dict[str, Any]
 ) -> None:
     old_cookie = client.cookies.get("refresh_token")
 
@@ -105,7 +107,7 @@ async def test_refresh_rejects_garbage_cookie(client: AsyncClient) -> None:
 
 
 async def test_logout_revokes_refresh_token(
-    client: AsyncClient, registered: dict[str, object]
+    client: AsyncClient, registered: dict[str, Any]
 ) -> None:
     logout = await client.post("/auth/logout")
     assert logout.status_code == 204
@@ -121,7 +123,7 @@ async def test_logout_without_cookie_is_idempotent(client: AsyncClient) -> None:
 
 
 async def test_me_returns_user_when_authenticated(
-    client: AsyncClient, credentials: dict[str, str], registered: dict[str, object]
+    client: AsyncClient, credentials: dict[str, str], registered: dict[str, Any]
 ) -> None:
     access = registered["access_token"]
     resp = await client.get("/auth/me", headers={"Authorization": f"Bearer {access}"})

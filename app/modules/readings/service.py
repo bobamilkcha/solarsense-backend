@@ -1,7 +1,7 @@
 import uuid
 from collections.abc import Sequence
 
-from app.models import SensorReading, Site
+from app.models import Project, SensorReading, Site
 from app.modules.readings.exceptions import SiteNotFoundError, UnknownDeviceError
 from app.modules.readings.schemas import ReadingPayload
 from sqlalchemy import select
@@ -14,16 +14,33 @@ class ReadingsService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def list_sites(self) -> Sequence[Site]:
-        result = await self.db.scalars(select(Site).order_by(Site.name))
+    async def list_sites(self, company_id: uuid.UUID | None) -> Sequence[Site]:
+        """`company_id=None` lists across every company (super_admin only)."""
+        stmt = select(Site).order_by(Site.name)
+        if company_id is not None:
+            stmt = stmt.join(Project, Site.project_id == Project.id).where(
+                Project.company_id == company_id
+            )
+        result = await self.db.scalars(stmt)
         return result.all()
 
     async def list_readings(
-        self, site_id: uuid.UUID, limit: int = 100, offset: int = 0
+        self,
+        site_id: uuid.UUID,
+        company_id: uuid.UUID | None,
+        limit: int = 100,
+        offset: int = 0,
     ) -> Sequence[SensorReading]:
         site = await self.db.get(Site, site_id)
         if site is None:
             raise SiteNotFoundError
+
+        if company_id is not None:
+            project = await self.db.get(Project, site.project_id)
+            if project is None or project.company_id != company_id:
+                # Site exists, just not in the caller's company — 404, not 403,
+                # so we don't leak which device_ids/site_ids belong to others.
+                raise SiteNotFoundError
 
         result = await self.db.scalars(
             select(SensorReading)

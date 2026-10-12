@@ -30,3 +30,8 @@ class InvalidCredentialsError(AuthError):
 class InvalidRefreshTokenError(AuthError):
     status_code = status.HTTP_401_UNAUTHORIZED
     detail = "Invalid or expired refresh token"
+
+
+class ForbiddenError(AuthError):
+    status_code = status.HTTP_403_FORBIDDEN
+    detail = "You don't have permission to perform this action"

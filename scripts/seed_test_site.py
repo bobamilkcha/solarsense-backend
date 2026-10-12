@@ -1,4 +1,4 @@
-"""Create (or reuse) a Site row for manual MQTT subscriber testing.
+"""Create (or reuse) a Company + Project + Site chain for manual MQTT subscriber testing.
 
 Unlike scripts/mock_publish_reading.py, this reuses the app's DB session manager
 and models directly rather than parsing .env itself, since it needs the ORM anyway.
@@ -11,7 +11,7 @@ import asyncio
 import sys
 
 from app.core.database.database import sessionmanager
-from app.models import Site
+from app.models import Company, Project, Site
 from sqlalchemy import select
 
 
@@ -23,7 +23,16 @@ async def seed(device_id: str, name: str) -> None:
             print(f"Site already exists: id={site.id} device_id={site.device_id} name={site.name}")
             return
 
+        company = Company(name=f"Test Company ({device_id})")
+        db.add(company)
+        await db.flush()
+
+        project = Project(company_id=company.id, name=f"Test Project ({device_id})")
+        db.add(project)
+        await db.flush()
+
         site = Site(
+            project_id=project.id,
             name=name,
             device_id=device_id,
             location_lat=3.1390,
@@ -33,7 +42,10 @@ async def seed(device_id: str, name: str) -> None:
         await db.commit()
         await db.refresh(site)
 
-        print(f"Created site: id={site.id} device_id={site.device_id} name={site.name}")
+        print(
+            f"Created company={company.id} project={project.id} "
+            f"site={site.id} device_id={site.device_id} name={site.name}"
+        )
 
 
 def main() -> None:

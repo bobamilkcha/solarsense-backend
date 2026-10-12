@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def _payload(**overrides) -> UserRegisterRequest:
-    data = {"email": "svc@example.com", "password": "supersecret"}
+    data = {"email": "svc@example.com", "password": "supersecret", "company_name": "Test Co"}
     data.update(overrides)
     return UserRegisterRequest(**data)
 

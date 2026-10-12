@@ -16,6 +16,7 @@ Strategy
 """
 
 from collections.abc import AsyncGenerator, Generator
+from typing import Any
 
 import pytest
 import pytest_asyncio
@@ -88,11 +89,11 @@ DEFAULT_PASSWORD = "supersecret"
 
 @pytest.fixture
 def credentials() -> dict[str, str]:
-    return {"email": DEFAULT_EMAIL, "password": DEFAULT_PASSWORD}
+    return {"email": DEFAULT_EMAIL, "password": DEFAULT_PASSWORD, "company_name": "Test Co"}
 
 
 @pytest_asyncio.fixture
-async def registered(client: AsyncClient, credentials: dict[str, str]) -> dict[str, object]:
+async def registered(client: AsyncClient, credentials: dict[str, str]) -> dict[str, Any]:
     """Register the default user and return the response body.
 
     Leaves the refresh-token cookie in the client's jar, so authed requests

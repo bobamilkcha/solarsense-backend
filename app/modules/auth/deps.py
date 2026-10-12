@@ -1,8 +1,9 @@
 from typing import Annotated
 
 from app.core.deps import DBSession
-from app.models import User
+from app.models import User, UserRole
 from app.modules.auth import security
+from app.modules.auth.exceptions import ForbiddenError
 from app.modules.auth.service import AuthService
 from fastapi import Depends, status
 from fastapi.exceptions import HTTPException
@@ -40,3 +41,18 @@ def get_auth_service(db: DBSession) -> AuthService:
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
+
+
+def require_roles(*roles: UserRole):
+    """Dependency factory: 403s unless the current user has one of `roles`.
+
+    super_admin always passes, regardless of the roles listed, since it's the
+    platform-wide role that supersedes company-scoped ones.
+    """
+
+    async def _check(current_user: CurrentUser) -> User:
+        if current_user.role == UserRole.SUPER_ADMIN or current_user.role in roles:
+            return current_user
+        raise ForbiddenError
+
+    return Depends(_check)

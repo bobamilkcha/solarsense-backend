@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from app.models import RefreshToken, User
+from app.models import Company, RefreshToken, User, UserRole
 from app.modules.auth import security
 from app.modules.auth.exceptions import (
     EmailAlreadyExistsError,
@@ -23,7 +23,13 @@ class AuthService:
         if existing:
             raise EmailAlreadyExistsError
 
+        company = Company(name=data.company_name)
+        self.db.add(company)
+        await self.db.flush()  # assigns company.id without ending the transaction
+
         user = User(
+            company_id=company.id,
+            role=UserRole.COMPANY_ADMIN,
             email=data.email,
             password_hash=security.hash_password(data.password),
             first_name=data.first_name,
