@@ -1,3 +1,4 @@
+import uuid
 from typing import Annotated
 
 from app.core.deps import DBSession
@@ -56,3 +57,10 @@ def require_roles(*roles: UserRole):
         raise ForbiddenError
 
     return Depends(_check)
+
+
+def company_scope(current_user: User) -> uuid.UUID | None:
+    """Company filter to apply for a read: None means "no filter" and is only
+    valid for super_admin, who can see every company's data.
+    """
+    return None if current_user.role == UserRole.SUPER_ADMIN else current_user.company_id

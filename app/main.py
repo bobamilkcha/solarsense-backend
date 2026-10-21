@@ -7,6 +7,8 @@ from app.core.database.database import sessionmanager
 from app.core.middlewares import LoggingMiddleware
 from app.modules.auth.exceptions import AuthError
 from app.modules.auth.router import router as auth_router
+from app.modules.benchmark.exceptions import BenchmarkError
+from app.modules.benchmark.router import router as benchmark_router
 from app.modules.projects.exceptions import ProjectsError
 from app.modules.projects.router import router as projects_router
 from app.modules.readings.exceptions import ReadingsError
@@ -49,6 +51,11 @@ async def projects_error_handler(_: Request, exc: ProjectsError) -> JSONResponse
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 
+@app.exception_handler(BenchmarkError)
+async def benchmark_error_handler(_: Request, exc: BenchmarkError) -> JSONResponse:
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+
 app.add_middleware(LoggingMiddleware)
 
 if app_config.BACKEND_CORS_ORIGINS:
@@ -63,3 +70,4 @@ if app_config.BACKEND_CORS_ORIGINS:
 app.include_router(auth_router)
 app.include_router(projects_router)
 app.include_router(readings_router)
+app.include_router(benchmark_router)

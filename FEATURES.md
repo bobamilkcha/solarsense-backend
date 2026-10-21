@@ -57,6 +57,24 @@ _Last updated: 2026-10-01_
   publish MQTT reading → ingest → insert → authenticated read back out, plus
   the unknown-device-drop and cross-company-isolation paths
 
+### Satellite benchmark comparison (`app/modules/benchmark/`)
+- `GET /sites/{site_id}/benchmark?month=1-12` (auth required, company-scoped
+  same as readings) — pairs the site's own average `cell_voltage`/`cell_current`
+  for a calendar month against PVGIS's long-term average horizontal irradiation
+  for that month at the site's lat/lng
+- PVGIS (EU JRC) is free and requires no API key; `app/modules/benchmark/client.py`
+  calls its `MRcalc` tool and averages across its historical years (2005-2020 for
+  PVGIS-ERA5) per calendar month
+- Returns a raw side-by-side comparison, not a verdict — converting
+  `cell_voltage`/`cell_current` into true irradiance (W/m^2) needs a calibration
+  factor for the reference cell that hasn't been established yet, so the two
+  sides aren't on the same unit yet (see gaps below)
+- PVGIS failures surface as `502` (`BenchmarkUnavailableError`) rather than
+  taking the request down
+- Fully tested (PVGIS client unit-tested via `httpx.MockTransport`, no real
+  network in tests; service/route tests mock the PVGIS call) and **verified
+  live** against the real PVGIS API for a Kuala Lumpur coordinate
+
 ### Infrastructure
 - `docker-compose.yml`: Postgres (named volume `pgdata`) + MinIO, both reading
   config from `.env`
@@ -69,7 +87,7 @@ _Last updated: 2026-10-01_
   try/except-to-HTTPException mapping
 - `mise` tasks for dev/test/migrate/db lifecycle; pre-commit (ruff + `ty check`)
   and pre-push (full pytest) git hooks
-- Test suite: 71 tests passing, unit (no Docker) + integration (real Postgres via
+- Test suite: 82 tests passing, unit (no Docker) + integration (real Postgres via
   testcontainers, transaction-per-test isolation)
 - Standalone scripts for manual testing: `scripts/seed_test_site.py` (creates a
   throwaway Company+Project+Site chain), `scripts/mock_publish_reading.py`
@@ -97,8 +115,14 @@ _Last updated: 2026-10-01_
   rate-limiting middleware wired up yet.
 - **NFR3 (5s MQTT latency) untested** — no timing test; should be fine against
   real hardware but hasn't been measured.
-- **NFR6 (satellite benchmark comparison)** — no PVGIS/Solcast/Solargis
-  integration; nothing fetches or compares external irradiance data yet.
+- **NFR6 is now a raw comparison, not a calibrated one** — PVGIS integration is
+  done and live-verified, but there's no calibration factor yet to convert the
+  reference cell's `cell_voltage`/`cell_current` into true irradiance (W/m^2),
+  so the device and satellite figures sit side by side rather than being
+  directly compared/scored.
+- **No caching on the benchmark endpoint** — every call hits PVGIS live; fine
+  for an FYP demo, but would need caching (PVGIS data is static per
+  coordinate+month) before any real traffic.
 - **NFR7 (uptime)** — no health-check endpoint, no deployment/hosting setup
   (`gunicorn` is a dependency but unused so far).
 - **FR4 (TNB bill parsing)** — no PDF upload or kWh/tariff extraction.
