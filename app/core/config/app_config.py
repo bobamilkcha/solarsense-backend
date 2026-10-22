@@ -14,7 +14,7 @@ class AppConfig(BaseConfig):
     _default_secrets: list[str] = ["DATABASE_PASSWORD", "SECRET_KEY"]
 
     ENVIRONMENT: Literal["local", "staging", "production", "testing"] = "local"
-    PROJECT_NAME: str = "Insight Backend"
+    PROJECT_NAME: str = "SolarSense Backend"
     DOMAIN: str = "localhost"
     HOST: str = "0.0.0.0"
     PORT: int = 80

@@ -40,6 +40,7 @@ mise run test                              # uv run pytest (extra args pass thro
 mise run test-cov                          # pytest with terminal coverage report
 mise run test-cov-html                     # pytest, writes htmlcov/
 mise run generate-secret-key               # print a random hex secret for SECRET_KEY
+mise run export-openapi                    # regenerate docs/openapi.json for the frontend
 ```
 
 Running a single test directly (bypassing mise): `uv run pytest tests/unit/test_security.py::test_name -v`.
@@ -57,6 +58,11 @@ uv run ty check
 Git hooks (installed by `mise run init`): **pre-commit** runs hygiene checks + ruff +
 `ty check`; **pre-push** runs the full pytest suite (needs Docker for integration
 tests). Don't bypass these with `--no-verify` unless explicitly asked.
+
+**After changing any route or schema, run `mise run export-openapi`** and commit
+the updated `docs/openapi.json`. The frontend generates its types from it, and
+`docs/FRONTEND.md` is the hand-written companion guide (auth flow, errors,
+units). Update it when behaviour changes in ways the spec can't show.
 
 ## Architecture
 

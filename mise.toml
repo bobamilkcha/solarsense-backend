@@ -53,3 +53,7 @@ run = "uv run pytest --cov=app --cov-report=term-missing $@"
 [tasks.test-cov-html]
 description = "Run tests and write an HTML coverage report to htmlcov/"
 run = "uv run pytest --cov=app --cov-report=html $@"
+
+[tasks.export-openapi]
+description = "Write the OpenAPI spec to docs/openapi.json (hand it to the frontend)"
+run = "uv run python -m scripts.export_openapi"
