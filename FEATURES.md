@@ -106,6 +106,27 @@ _Last updated: 2026-10-22_
   end-to-end** against real local-filesystem storage: upload → stored on
   disk → listed → downloaded byte-identical to the original
 
+### Feasibility report (`app/modules/reports/`)
+- `GET /sites/{site_id}/feasibility` (auth + company-scoped) — combines the
+  site's bills, PVGIS monthly irradiation, and the device's measured
+  shading into: recommended system size (kWp, panel count), cost, annual
+  production, bill before/after per month, annual savings, simple payback,
+  and net savings over 25 years (0.5%/yr degradation, flat tariffs)
+- **TNB domestic tariff calculator** (`tariff.py`) for the July 2025 tariff,
+  checked line by line against a real bill: energy (incl. >1,500 kWh tier),
+  capacity, network, retail charge, AFA, 8% service tax above 600 kWh, KWTBB.
+  Non-domestic bills fall back to a flat RM/kWh rate derived from the bills'
+  `current_charges`
+- Shading factor = average of device/satellite ratio over complete days
+  (capped at 1.0); with no complete days, satellite-only (factor 1.0)
+- Overridable query params with defaults: `system_kwp` (omit = sized to cover
+  annual usage), `performance_ratio` 0.8, `self_consumption_ratio` 0.6,
+  `export_rate_rm_per_kwh` 0 (conservative), `cost_per_kwp_rm` 4000,
+  `panel_wp` 550, `afa_rate_rm_per_kwh` 0
+- 422 if the site has no bill with kWh; 502 if PVGIS is down
+- Fully tested (tariff + maths unit tests, service/route integration tests
+  with PVGIS mocked)
+
 ### Infrastructure
 - `docker-compose.yml`: Postgres (named volume `pgdata`). MinIO was removed —
   see gaps below
@@ -122,7 +143,7 @@ _Last updated: 2026-10-22_
   try/except-to-HTTPException mapping
 - `mise` tasks for dev/test/migrate/db lifecycle; pre-commit (ruff + `ty check`)
   and pre-push (full pytest) git hooks
-- Test suite: 112 tests passing, unit (no Docker) + integration (real Postgres via
+- Test suite: 134 tests passing, unit (no Docker) + integration (real Postgres via
   testcontainers, transaction-per-test isolation)
 - Standalone scripts for manual testing: `scripts/seed_test_site.py` (creates a
   throwaway Company+Project+Site chain), `scripts/mock_publish_reading.py`
@@ -168,7 +189,11 @@ _Last updated: 2026-10-22_
   (`gunicorn` is a dependency but unused so far).
 - **FR4 (TNB bill parsing)** — validated on a single domestic bill only;
   needs more sample bills (other tariffs, older layouts) to harden.
-- **FR5 (feasibility report generation)** — no report generation/export
-  (PDF/Excel) combining readings + satellite benchmark + bill data.
+- **FR5 (feasibility report) — calculation done, export not** — the JSON
+  endpoint exists; no PDF/Excel export yet. Assumption defaults (cost/kWp,
+  self-consumption 60%, zero export credit) are estimates to review; the
+  Solar ATAP export rate and the Energy Efficiency Incentive rebate (usage
+  <=1,000 kWh) aren't modelled, so savings are on the conservative side.
+  Consumption is assumed flat across the year (average of uploaded bills).
 - **FR6 (site visit checklist)** — no CRUD for this yet.
 - **FR8 (raw data export)** — no CSV/JSON export endpoint for readings.
