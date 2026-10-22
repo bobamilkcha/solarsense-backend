@@ -162,6 +162,25 @@ _Last updated: 2026-10-22_
 - Fully tested (tariff + maths unit tests, service/route integration tests
   with PVGIS mocked)
 
+### Site visit checklist (`app/modules/visits/`) — FR6
+- `POST /sites/{site_id}/visits` — start a visit (any company member;
+  installers are the ones on site). Pre-filled from a default Malaysian
+  rooftop-survey checklist (`template.py`: roof, shading, electrical,
+  installation, SolarSense device placement, customer) unless
+  `use_default_checklist=false`
+- `GET /sites/{site_id}/visits` (newest first, with progress counts) and
+  `GET /visits/{id}` (with items); `PATCH` / `DELETE /visits/{id}`
+- Items: `POST /visits/{id}/items`, `PATCH` / `DELETE
+  /visits/{id}/items/{item_id}`. Each item has a status (`pending` / `ok` /
+  `issue` / `not_applicable`), an optional free-text `value` for
+  measurements/choices ("45 m²", "three phase"), and notes
+- Completing a visit (`status: completed`) is refused (409) while any item is
+  still pending; a completed visit is locked (409 on edits) until reopened
+  with `status: in_progress`
+- Company-scoped like everything else (another company's visit → 404)
+- Fully tested (default template, custom items, completion/lock/reopen,
+  installer access, cross-company isolation)
+
 ### Infrastructure
 - `docker-compose.yml`: Postgres (named volume `pgdata`). MinIO was removed —
   see gaps below
@@ -171,7 +190,7 @@ _Last updated: 2026-10-22_
   swapping in a real object store later doesn't require touching callers
 - Alembic migrations for `users`, `refresh_tokens`, `sites`, `sensor_readings`,
   `companies`, `projects`, `tnb_bills` (+ `current_charges` column),
-  `invitations` (+ `users.is_active`), plus the `user_role` Postgres enum
+  `invitations` (+ `users.is_active`), `site_visits`, `checklist_items`, plus the `user_role` Postgres enum
   (`migrations/versions/`), applied to the local DB
 - Structured logging (`structlog`) with request/trace ID propagation via
   `LoggingMiddleware`
@@ -179,7 +198,7 @@ _Last updated: 2026-10-22_
   try/except-to-HTTPException mapping
 - `mise` tasks for dev/test/migrate/db lifecycle; pre-commit (ruff + `ty check`)
   and pre-push (full pytest) git hooks
-- Test suite: 165 tests passing, unit (no Docker) + integration (real Postgres via
+- Test suite: 177 tests passing, unit (no Docker) + integration (real Postgres via
   testcontainers, transaction-per-test isolation)
 - Standalone scripts for manual testing: `scripts/seed_test_site.py` (creates a
   throwaway Company+Project+Site chain), `scripts/mock_publish_reading.py`
@@ -228,4 +247,7 @@ _Last updated: 2026-10-22_
   export rate and the Energy Efficiency Incentive rebate (usage <=1,000 kWh)
   aren't modelled, so savings are on the conservative side. Consumption is
   assumed flat across the year (average of uploaded bills).
-- **FR6 (site visit checklist)** — no CRUD for this yet.
+- **Site visit photos** — the checklist has no photo attachments yet (object
+  storage exists and could hold them, as it does for bills). The default
+  checklist template is a generic survey list, not taken from a spec —
+  adjust `app/modules/visits/template.py` if the FYP requirements list items.

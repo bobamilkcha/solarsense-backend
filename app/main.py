@@ -24,6 +24,9 @@ from app.modules.reports.exceptions import ReportsError
 from app.modules.reports.router import router as reports_router
 from app.modules.users.exceptions import UsersError
 from app.modules.users.router import router as users_router
+from app.modules.visits.exceptions import VisitsError
+from app.modules.visits.router import router as visits_router
+from app.modules.visits.router import sites_router as visits_sites_router
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -89,6 +92,11 @@ async def users_error_handler(_: Request, exc: UsersError) -> JSONResponse:
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 
+@app.exception_handler(VisitsError)
+async def visits_error_handler(_: Request, exc: VisitsError) -> JSONResponse:
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+
 app.add_middleware(LoggingMiddleware)
 
 if app_config.BACKEND_CORS_ORIGINS:
@@ -108,3 +116,5 @@ app.include_router(bills_sites_router)
 app.include_router(bills_router)
 app.include_router(reports_router)
 app.include_router(users_router)
+app.include_router(visits_sites_router)
+app.include_router(visits_router)
