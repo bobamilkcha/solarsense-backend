@@ -146,6 +146,9 @@ rabbitmq-data/
 # ActiveMQ
 activemq-data/
 
+# Local object storage (uploaded files in dev; see OBJECT_STORAGE_DIR)
+/data/
+
 # SageMath parsed files
 *.sage.py
 

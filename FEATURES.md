@@ -1,6 +1,6 @@
 # SolarSense Backend — Feature Status
 
-_Last updated: 2026-10-01_
+_Last updated: 2026-10-22_
 
 ## Working today
 
@@ -75,11 +75,38 @@ _Last updated: 2026-10-01_
   network in tests; service/route tests mock the PVGIS call) and **verified
   live** against the real PVGIS API for a Kuala Lumpur coordinate
 
+### TNB bill parsing & upload (`app/modules/bills/`)
+- `POST /sites/{site_id}/bills` (multipart upload, auth + company-scoped) —
+  stores the PDF and best-effort-extracts `billing_period_start/end`,
+  `kwh_used`, `tariff_category`, `amount_due`, `current_charges` via regex over `pdfplumber`-
+  extracted text (`app/modules/bills/parser.py`)
+- Parser patterns are **verified against one real TNB bill** (2026 domestic,
+  Malay two-page layout): all six fields extract correctly. Only one bill
+  layout has been seen — commercial/industrial tariffs or older layouts may
+  differ. Every extracted field is nullable by design: an unrecognized layout
+  still stores the file with whatever could be extracted, rather than
+  rejecting the upload.
+- `amount_due` is the bill's total payable (`Jumlah Bil Anda`, includes any
+  previous balance); `current_charges` is this period's charges only
+  (`Caj Semasa`) — use the latter for cost/savings calculations
+- `GET /sites/{site_id}/bills` — list a site's uploaded bills
+- `GET /bills/{bill_id}/file` — download the original PDF
+- A non-PDF/unreadable upload still gets an `InvalidPDFError` (422); an
+  unreadable *layout* on a valid PDF does not — see above
+- Fully tested (parser tests against real-bill extracted text;
+  service/route tests with storage faked out) and **verified live
+  end-to-end** against real local-filesystem storage: upload → stored on
+  disk → listed → downloaded byte-identical to the original
+
 ### Infrastructure
-- `docker-compose.yml`: Postgres (named volume `pgdata`) + MinIO, both reading
-  config from `.env`
+- `docker-compose.yml`: Postgres (named volume `pgdata`). MinIO was removed —
+  see gaps below
+- Object storage (`app/core/storage/object_storage.py`) is local-filesystem
+  based (under `OBJECT_STORAGE_DIR`, default `./data/object_storage`), behind
+  an S3-shaped `ensure_bucket`/`upload_bytes`/`get_bytes` interface so
+  swapping in a real object store later doesn't require touching callers
 - Alembic migrations for `users`, `refresh_tokens`, `sites`, `sensor_readings`,
-  `companies`, `projects`, plus the `user_role` Postgres enum
+  `companies`, `projects`, `tnb_bills` (+ `current_charges` column), plus the `user_role` Postgres enum
   (`migrations/versions/`), applied to the local DB
 - Structured logging (`structlog`) with request/trace ID propagation via
   `LoggingMiddleware`
@@ -87,7 +114,7 @@ _Last updated: 2026-10-01_
   try/except-to-HTTPException mapping
 - `mise` tasks for dev/test/migrate/db lifecycle; pre-commit (ruff + `ty check`)
   and pre-push (full pytest) git hooks
-- Test suite: 82 tests passing, unit (no Docker) + integration (real Postgres via
+- Test suite: 104 tests passing, unit (no Docker) + integration (real Postgres via
   testcontainers, transaction-per-test isolation)
 - Standalone scripts for manual testing: `scripts/seed_test_site.py` (creates a
   throwaway Company+Project+Site chain), `scripts/mock_publish_reading.py`
@@ -101,9 +128,13 @@ _Last updated: 2026-10-01_
   row directly (as the tests do).
 - **No user management endpoints** — no way to list/invite/deactivate users
   within a company, or for a `company_admin` to change another user's role.
-- **MinIO is provisioned but unused** — the service runs in `docker-compose.yml`
-  and has config values, but no code reads/writes to it (likely intended for
-  storing site photos or exports later).
+- **MinIO is gone, not just unused** — its container image is no longer
+  freely pullable from Docker Hub or Quay.io as of 2026-10-21 (every tag
+  tried, including `latest`, is denied — this looks like a 2025 licensing
+  change, not a transient issue). Object storage is local-filesystem for now
+  (see above); revisit if you get access to a real object store (a MinIO
+  subscription, AWS S3, or a free alternative like Garage/SeaweedFS) before
+  deploying anywhere that isn't this one machine's disk.
 - **No CI pipeline** — tests, lint, and type-checking only run locally via
   pre-commit/pre-push hooks; no `.github/workflows` or equivalent.
 - **No pagination metadata** — `GET /sites/{site_id}/readings` takes
@@ -125,8 +156,9 @@ _Last updated: 2026-10-01_
   coordinate+month) before any real traffic.
 - **NFR7 (uptime)** — no health-check endpoint, no deployment/hosting setup
   (`gunicorn` is a dependency but unused so far).
-- **FR4 (TNB bill parsing)** — no PDF upload or kWh/tariff extraction.
+- **FR4 (TNB bill parsing)** — validated on a single domestic bill only;
+  needs more sample bills (other tariffs, older layouts) to harden.
 - **FR5 (feasibility report generation)** — no report generation/export
-  (PDF/Excel) combining readings + satellite benchmark data.
+  (PDF/Excel) combining readings + satellite benchmark + bill data.
 - **FR6 (site visit checklist)** — no CRUD for this yet.
 - **FR8 (raw data export)** — no CSV/JSON export endpoint for readings.

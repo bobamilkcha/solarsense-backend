@@ -73,10 +73,7 @@ class AppConfig(BaseConfig):
     MQTT_USE_TLS: bool = True
     MQTT_READINGS_TOPIC: str = "solarsense/+/readings"
 
-    MINIO_USER: str = "minioadmin"
-    MINIO_PASSWORD: str = "minioadmin"
-    MINIO_API_PORT: int = 9000
-    MINIO_CONSOLE_PORT: int = 9001
+    OBJECT_STORAGE_DIR: str = "./data/object_storage"
 
     LOG_LEVEL: str = "INFO"
     LOG_HANDLERS: str | list[str] = "stream"
