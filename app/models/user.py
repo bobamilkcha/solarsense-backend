@@ -4,6 +4,7 @@ from datetime import datetime
 from app.models.base import Base, TimestampMixin
 from app.models.enums import UserRole
 from sqlalchemy import DateTime, Enum, ForeignKey, String
+from sqlalchemy import true as sa_true
 from sqlalchemy.dialects.postgresql import BOOLEAN, CITEXT, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -25,6 +26,10 @@ class User(TimestampMixin, Base):
     first_name: Mapped[str | None] = mapped_column(String, nullable=True)
     last_name: Mapped[str | None] = mapped_column(String, nullable=True)
     email_verified: Mapped[bool] = mapped_column(BOOLEAN(), default=False)
+    # Deactivated users can't log in, refresh, or use existing access tokens.
+    is_active: Mapped[bool] = mapped_column(
+        BOOLEAN(), default=True, server_default=sa_true(), nullable=False
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

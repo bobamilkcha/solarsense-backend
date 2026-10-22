@@ -22,6 +22,8 @@ from app.modules.readings.mqtt import MQTTSubscriber
 from app.modules.readings.router import router as readings_router
 from app.modules.reports.exceptions import ReportsError
 from app.modules.reports.router import router as reports_router
+from app.modules.users.exceptions import UsersError
+from app.modules.users.router import router as users_router
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -82,6 +84,11 @@ async def reports_error_handler(_: Request, exc: ReportsError) -> JSONResponse:
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 
+@app.exception_handler(UsersError)
+async def users_error_handler(_: Request, exc: UsersError) -> JSONResponse:
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+
 app.add_middleware(LoggingMiddleware)
 
 if app_config.BACKEND_CORS_ORIGINS:
@@ -100,3 +107,4 @@ app.include_router(benchmark_router)
 app.include_router(bills_sites_router)
 app.include_router(bills_router)
 app.include_router(reports_router)
+app.include_router(users_router)

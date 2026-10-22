@@ -43,6 +43,35 @@ async def login(
     return schemas.AuthResponse(access_token=access, user=schemas.UserResponse.model_validate(user))
 
 
+@router.post("/invitations/lookup", response_model=schemas.InvitationPreviewResponse)
+async def preview_invitation(data: schemas.InvitationTokenRequest, service: AuthServiceDep):
+    # POST, not GET: keeps the token out of URLs and access logs.
+    invitation, company = await service.preview_invitation(data.token)
+    return schemas.InvitationPreviewResponse(
+        email=invitation.email,
+        role=invitation.role,
+        company_name=company.name,
+        expires_at=invitation.expires_at,
+    )
+
+
+@router.post(
+    "/invitations/accept",
+    response_model=schemas.AuthResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def accept_invitation(
+    data: schemas.AcceptInvitationRequest,
+    request: Request,
+    response: Response,
+    service: AuthServiceDep,
+):
+    user = await service.accept_invitation(data)
+    access, refresh = await service.issue_tokens(user, user_agent=request.headers.get("user-agent"))
+    set_refresh_cookie(response, refresh)
+    return schemas.AuthResponse(access_token=access, user=schemas.UserResponse.model_validate(user))
+
+
 @router.post("/refresh", response_model=schemas.AuthResponse)
 async def refresh(
     request: Request,

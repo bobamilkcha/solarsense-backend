@@ -6,8 +6,8 @@ _Last updated: 2026-10-22_
 
 ### Auth + RBAC (`app/modules/auth/`)
 - `POST /auth/register` — creates a new `Company` **and** its first user
-  together, as `company_admin`. There's no public "join an existing company"
-  endpoint yet (see gaps below).
+  together, as `company_admin`. Joining an *existing* company is by
+  invitation (below).
 - `POST /auth/login`, `/auth/refresh`, `/auth/logout`, `GET /auth/me`
 - Argon2 password hashing with automatic rehash on login when params go stale
 - JWT access tokens (Bearer, returned in JSON body) + refresh tokens (httponly
@@ -22,6 +22,29 @@ _Last updated: 2026-10-22_
   unless the caller has one of the listed roles (`super_admin` always passes)
 - Fully tested (unit + integration, including reuse-detection, rotation, and
   role-based access edge cases)
+
+### Invitations & user management (`app/modules/users/`)
+- `POST /users/invitations` (company_admin+) — invite an email as `installer`
+  or `company_admin` (never `super_admin`). Returns a one-time token, shown
+  only once; the frontend builds the invite link from it. No email is sent —
+  the admin shares the link. Only a SHA-256 hash of the token is stored.
+  Expires after `INVITATION_EXPIRE_DAYS` (default 7); re-inviting the same
+  email invalidates the previous link. 409 if the email already has an account
+- `GET /users/invitations` / `DELETE /users/invitations/{id}` (company_admin+)
+  — list pending invites / revoke one
+- `POST /auth/invitations/lookup` — preview an invite (company name, email,
+  role) for the accept page; `POST /auth/invitations/accept` — set a password,
+  creates the user in the inviting company and logs them in. Token goes in
+  the body, not the URL, to keep it out of logs
+- `GET /users` — list the caller's company (any role)
+- `PATCH /users/{id}` (company_admin+) — change role and/or `is_active`.
+  Can't modify yourself (so a company can't lose its last admin by accident);
+  only a super_admin can modify a super_admin; another company's user → 404
+- **Deactivation** (`users.is_active`): blocked at login (403, only after a
+  correct password), refresh, and on every request via `get_current_user`;
+  deactivating also revokes all the user's refresh tokens
+- Fully tested (full invite flow, single-use/expired/revoked/replaced tokens,
+  RBAC, cross-company isolation, deactivation lockout + reactivation)
 
 ### Company-scoped projects & sites (`app/modules/projects/`)
 - `Company` → `Project` → `Site` → `SensorReading` hierarchy — a site now
@@ -147,7 +170,8 @@ _Last updated: 2026-10-22_
   an S3-shaped `ensure_bucket`/`upload_bytes`/`get_bytes` interface so
   swapping in a real object store later doesn't require touching callers
 - Alembic migrations for `users`, `refresh_tokens`, `sites`, `sensor_readings`,
-  `companies`, `projects`, `tnb_bills` (+ `current_charges` column), plus the `user_role` Postgres enum
+  `companies`, `projects`, `tnb_bills` (+ `current_charges` column),
+  `invitations` (+ `users.is_active`), plus the `user_role` Postgres enum
   (`migrations/versions/`), applied to the local DB
 - Structured logging (`structlog`) with request/trace ID propagation via
   `LoggingMiddleware`
@@ -155,7 +179,7 @@ _Last updated: 2026-10-22_
   try/except-to-HTTPException mapping
 - `mise` tasks for dev/test/migrate/db lifecycle; pre-commit (ruff + `ty check`)
   and pre-push (full pytest) git hooks
-- Test suite: 147 tests passing, unit (no Docker) + integration (real Postgres via
+- Test suite: 165 tests passing, unit (no Docker) + integration (real Postgres via
   testcontainers, transaction-per-test isolation)
 - Standalone scripts for manual testing: `scripts/seed_test_site.py` (creates a
   throwaway Company+Project+Site chain), `scripts/mock_publish_reading.py`
@@ -163,12 +187,9 @@ _Last updated: 2026-10-22_
 
 ## Still being worked on / needs fixing
 
-- **No "join an existing company" flow** — registration always creates a brand
-  new company + a `company_admin`. Adding a second user (e.g. an `installer`)
-  to an existing company has no API yet — only possible by inserting a `User`
-  row directly (as the tests do).
-- **No user management endpoints** — no way to list/invite/deactivate users
-  within a company, or for a `company_admin` to change another user's role.
+- **Invited users' emails aren't verified** — invites are shared by the
+  admin, not emailed, so accepting one doesn't prove email ownership
+  (`email_verified` stays false; login doesn't check it yet either).
 - **MinIO is gone, not just unused** — its container image is no longer
   freely pullable from Docker Hub or Quay.io as of 2026-10-21 (every tag
   tried, including `latest`, is denied — this looks like a 2025 licensing

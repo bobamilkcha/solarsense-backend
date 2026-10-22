@@ -1,3 +1,5 @@
+import hashlib
+import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -93,3 +95,15 @@ def decode_refresh(token: str) -> tuple[uuid.UUID, uuid.UUID]:
         return uuid.UUID(payload["sub"]), uuid.UUID(payload["jti"])
     except (KeyError, ValueError) as exc:
         raise TokenError("Invalid refresh token claims") from exc
+
+
+def generate_invite_token() -> tuple[str, str]:
+    """Returns (raw token to hand to the invitee, hash to store)."""
+    raw = secrets.token_urlsafe(32)
+    return raw, hash_invite_token(raw)
+
+
+def hash_invite_token(raw: str) -> str:
+    # The token is 256 bits of randomness, so a fast hash is enough here —
+    # slow hashing (argon2) is for low-entropy secrets like passwords.
+    return hashlib.sha256(raw.encode()).hexdigest()

@@ -29,7 +29,7 @@ async def get_current_user(
         raise cred_exception from err
 
     user = await db.get(User, user_id)
-    if user is None:
+    if user is None or not user.is_active:
         raise cred_exception
 
     return user

@@ -35,3 +35,13 @@ class InvalidRefreshTokenError(AuthError):
 class ForbiddenError(AuthError):
     status_code = status.HTTP_403_FORBIDDEN
     detail = "You don't have permission to perform this action"
+
+
+class AccountDisabledError(AuthError):
+    status_code = status.HTTP_403_FORBIDDEN
+    detail = "This account has been deactivated"
+
+
+class InvalidInvitationError(AuthError):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Invitation is invalid, already used, or expired"

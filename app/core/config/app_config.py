@@ -24,6 +24,8 @@ class AppConfig(BaseConfig):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
+    INVITATION_EXPIRE_DAYS: int = 7
+
     REFRESH_COOKIE_NAME: str = "refresh_token"
     REFRESH_COOKIE_PATH: str = "/auth"
     REFRESH_COOKIE_SAMESITE: Literal["lax", "strict", "none"] = "lax"

@@ -1,14 +1,16 @@
 import uuid
 from datetime import UTC, datetime
 
-from app.models import Company, RefreshToken, User, UserRole
+from app.models import Company, Invitation, RefreshToken, User, UserRole
 from app.modules.auth import security
 from app.modules.auth.exceptions import (
+    AccountDisabledError,
     EmailAlreadyExistsError,
     InvalidCredentialsError,
+    InvalidInvitationError,
     InvalidRefreshTokenError,
 )
-from app.modules.auth.schemas import UserRegisterRequest
+from app.modules.auth.schemas import AcceptInvitationRequest, UserRegisterRequest
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,6 +55,11 @@ class AuthService:
         if not security.verify_password(password, user.password_hash):
             raise InvalidCredentialsError
 
+        # Checked only after the password, so this doesn't reveal which emails
+        # belong to deactivated accounts.
+        if not user.is_active:
+            raise AccountDisabledError
+
         # TODO: Ensure that the email is verified. Pending mailtrap integration.
 
         if security.needs_rehash(user.password_hash):
@@ -60,6 +67,47 @@ class AuthService:
             await self.db.commit()
 
         return user
+
+    async def preview_invitation(self, raw_token: str) -> tuple[Invitation, Company]:
+        invitation = await self._pending_invitation(raw_token)
+        company = await self.db.get(Company, invitation.company_id)
+        if company is None:
+            raise InvalidInvitationError
+        return invitation, company
+
+    async def accept_invitation(self, data: AcceptInvitationRequest) -> User:
+        invitation = await self._pending_invitation(data.token)
+
+        existing = await self.db.scalar(select(User).where(User.email == invitation.email))
+        if existing:
+            raise EmailAlreadyExistsError
+
+        user = User(
+            company_id=invitation.company_id,
+            role=invitation.role,
+            email=invitation.email,
+            password_hash=security.hash_password(data.password),
+            first_name=data.first_name,
+            last_name=data.last_name,
+        )
+        self.db.add(user)
+        invitation.accepted_at = datetime.now(UTC)
+        await self.db.commit()
+        await self.db.refresh(user)
+        return user
+
+    async def _pending_invitation(self, raw_token: str) -> Invitation:
+        invitation = await self.db.scalar(
+            select(Invitation).where(Invitation.token_hash == security.hash_invite_token(raw_token))
+        )
+        if (
+            invitation is None
+            or invitation.accepted_at is not None
+            or invitation.revoked_at is not None
+            or invitation.expires_at <= datetime.now(UTC)
+        ):
+            raise InvalidInvitationError
+        return invitation
 
     async def issue_tokens(self, user: User, user_agent: str | None = None) -> tuple[str, str]:
         access = security.create_access_token(subject=user.id)
@@ -99,7 +147,7 @@ class AuthService:
 
         user = await self.db.get(User, user_id)
 
-        if user is None:
+        if user is None or not user.is_active:
             raise InvalidRefreshTokenError
 
         # Stage the revocation and let issue_tokens commit both in one transaction

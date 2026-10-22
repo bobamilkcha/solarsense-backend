@@ -1,8 +1,8 @@
 """Integration tests for the projects routes (HTTP layer), including RBAC.
 
-Registration always creates a company_admin (there's no public "join my
-company as an installer" endpoint yet), so installer-role tests create that
-user directly via the ORM and mint an access token for it.
+Registration always creates a company_admin, so installer-role tests create
+that user directly via the ORM and mint an access token for it (quicker than
+going through the invitation flow, which test_users_routes.py covers).
 """
 
 import uuid

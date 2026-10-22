@@ -1,6 +1,7 @@
 from app.models.base import Base, TimestampMixin
 from app.models.company import Company
 from app.models.enums import UserRole
+from app.models.invitation import Invitation
 from app.models.project import Project
 from app.models.refresh_token import RefreshToken
 from app.models.sensor_reading import SensorReading
@@ -14,6 +15,7 @@ __all__ = [
     "User",
     "UserRole",
     "Company",
+    "Invitation",
     "Project",
     "RefreshToken",
     "Site",
