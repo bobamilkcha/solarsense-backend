@@ -202,7 +202,12 @@ _Last updated: 2026-10-22_
   testcontainers, transaction-per-test isolation)
 - Standalone scripts for manual testing: `scripts/seed_test_site.py` (creates a
   throwaway Company+Project+Site chain), `scripts/mock_publish_reading.py`
-  (publish a mock reading to a device's MQTT topic)
+  (publish one realistic reading for the current Malaysian time, or `--at`), and
+  `scripts/mock_publish_series.py` (realistic KL weather for any range —
+  `--days/--weeks/--months/--years` or `--start/--end` — via MQTT or straight
+  into the DB; `--shade`, `--tilt`, `--interval`, `--seed`, `--dry-run`).
+  Calibrated to PVGIS so an unshaded mock site scores ~1.0 on the benchmark
+  ratio; verified: a year at `--shade 0.7` measures 0.717
 
 ## Still being worked on / needs fixing
 
