@@ -1,8 +1,13 @@
 import uuid
 from collections.abc import Sequence
+from datetime import datetime
 
 from app.models import Project, SensorReading, Site
-from app.modules.readings.exceptions import SiteNotFoundError, UnknownDeviceError
+from app.modules.readings.exceptions import (
+    InvalidDateRangeError,
+    SiteNotFoundError,
+    UnknownDeviceError,
+)
 from app.modules.readings.schemas import ReadingPayload
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,16 +36,7 @@ class ReadingsService:
         limit: int = 100,
         offset: int = 0,
     ) -> Sequence[SensorReading]:
-        site = await self.db.get(Site, site_id)
-        if site is None:
-            raise SiteNotFoundError
-
-        if company_id is not None:
-            project = await self.db.get(Project, site.project_id)
-            if project is None or project.company_id != company_id:
-                # Site exists, just not in the caller's company — 404, not 403,
-                # so we don't leak which device_ids/site_ids belong to others.
-                raise SiteNotFoundError
+        await self._authorized_site(site_id, company_id)
 
         result = await self.db.scalars(
             select(SensorReading)
@@ -50,6 +46,27 @@ class ReadingsService:
             .offset(offset)
         )
         return result.all()
+
+    async def export_readings(
+        self,
+        site_id: uuid.UUID,
+        company_id: uuid.UUID | None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+    ) -> tuple[Site, Sequence[SensorReading]]:
+        """All readings in [start, end), oldest first."""
+        if start is not None and end is not None and start >= end:
+            raise InvalidDateRangeError
+
+        site = await self._authorized_site(site_id, company_id)
+
+        stmt = select(SensorReading).where(SensorReading.site_id == site_id)
+        if start is not None:
+            stmt = stmt.where(SensorReading.device_timestamp >= start)
+        if end is not None:
+            stmt = stmt.where(SensorReading.device_timestamp < end)
+        result = await self.db.scalars(stmt.order_by(SensorReading.device_timestamp))
+        return site, result.all()
 
     async def record_reading(self, device_id: str, payload: ReadingPayload) -> SensorReading:
         site = await self.db.scalar(select(Site).where(Site.device_id == device_id))
@@ -75,3 +92,17 @@ class ReadingsService:
         await self.db.refresh(reading)
 
         return reading
+
+    async def _authorized_site(self, site_id: uuid.UUID, company_id: uuid.UUID | None) -> Site:
+        site = await self.db.get(Site, site_id)
+        if site is None:
+            raise SiteNotFoundError
+
+        if company_id is not None:
+            project = await self.db.get(Project, site.project_id)
+            if project is None or project.company_id != company_id:
+                # Site exists, just not in the caller's company — 404, not 403,
+                # so we don't leak which device_ids/site_ids belong to others.
+                raise SiteNotFoundError
+
+        return site

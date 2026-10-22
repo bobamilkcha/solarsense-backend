@@ -1,5 +1,6 @@
 """Integration tests for the feasibility report (service + HTTP), PVGIS mocked."""
 
+import io
 import uuid
 from datetime import date, datetime, timedelta
 from typing import Any
@@ -12,6 +13,7 @@ from app.modules.benchmark.irradiation import LOCAL_TZ
 from app.modules.readings.schemas import ReadingPayload
 from app.modules.readings.service import ReadingsService
 from httpx import AsyncClient
+from openpyxl import load_workbook
 from sqlalchemy.ext.asyncio import AsyncSession
 from tests.integration.test_bills_routes import _auth_headers, _own_site
 
@@ -180,3 +182,34 @@ async def test_feasibility_pvgis_down_502s(
 
     resp = await client.get(f"/sites/{site.id}/feasibility", headers=_auth_headers(registered))
     assert resp.status_code == 502
+
+
+async def test_feasibility_xlsx_download(
+    client: AsyncClient, db: AsyncSession, registered: dict[str, Any], fake_pvgis: None
+) -> None:
+    site = await _own_site(db, registered)
+    await _add_bill(db, site.id)
+
+    resp = await client.get(
+        f"/sites/{site.id}/feasibility/xlsx",
+        params={"system_kwp": 5},
+        headers=_auth_headers(registered),
+    )
+
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    assert "attachment" in resp.headers["content-disposition"]
+    wb = load_workbook(io.BytesIO(resp.content))
+    assert wb.sheetnames == ["Summary", "Monthly", "Assumptions"]
+    assert "Bill Test Site" in wb["Summary"]["A2"].value
+    assert wb["Summary"]["B5"].value == 5
+
+
+async def test_feasibility_xlsx_without_bills_422s(
+    client: AsyncClient, db: AsyncSession, registered: dict[str, Any], fake_pvgis: None
+) -> None:
+    site = await _own_site(db, registered)
+    resp = await client.get(f"/sites/{site.id}/feasibility/xlsx", headers=_auth_headers(registered))
+    assert resp.status_code == 422

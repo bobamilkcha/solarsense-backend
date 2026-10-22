@@ -28,3 +28,13 @@ class ReadingsError(Exception):
 class SiteNotFoundError(ReadingsError):
     status_code = status.HTTP_404_NOT_FOUND
     detail = "Site not found"
+
+
+class ExportTooLargeError(ReadingsError):
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
+    detail = "Too many readings for an Excel file; narrow the date range or export as CSV"
+
+
+class InvalidDateRangeError(ReadingsError):
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
+    detail = "start must be before end"

@@ -70,6 +70,9 @@ class ReportsService:
         self_used = sum(m.self_consumed_kwh for m in result.months)
         return FeasibilityReport(
             site_id=site.id,
+            site_name=site.name,
+            location_lat=float(site.location_lat),
+            location_lng=float(site.location_lng),
             consumption=consumption,
             shading=shading,
             system_kwp=result.system_kwp,

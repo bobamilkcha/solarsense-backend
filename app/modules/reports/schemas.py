@@ -52,6 +52,9 @@ class MonthBreakdown(BaseModel):
 
 class FeasibilityReport(BaseModel):
     site_id: uuid.UUID
+    site_name: str
+    location_lat: float
+    location_lng: float
     consumption: ConsumptionSummary
     shading: ShadingSummary
     system_kwp: float

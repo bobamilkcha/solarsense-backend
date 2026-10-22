@@ -50,6 +50,13 @@ _Last updated: 2026-10-22_
   - `GET /sites/{site_id}/readings?limit=&offset=` — paginated readings for a
     site, newest first; 404s if the site doesn't exist *or* belongs to another
     company (same reasoning as the projects 404s above)
+- **Raw data export (FR8)**: `GET /sites/{site_id}/readings/export?format=csv|xlsx&start=&end=`
+  (auth + company-scoped) — every reading in the range (start inclusive, end
+  exclusive), oldest first, with derived `irradiance_wm2` and timestamps in
+  both UTC and Malaysian time. CSV has a UTF-8 BOM so Excel opens it
+  cleanly; Excel uses write-only mode for large exports and 422s past
+  Excel's ~1M-row sheet limit. Built in memory, not streamed — fine for
+  months of 1-minute data, revisit if exports get much bigger
 - Domain errors go through a `ReadingsError`/`ProjectsError` hierarchy +
   global exception handlers, same pattern as `AuthError`
 - Fully tested, and **verified live end-to-end** against the real EMQX Cloud
@@ -124,6 +131,11 @@ _Last updated: 2026-10-22_
   `export_rate_rm_per_kwh` 0 (conservative), `cost_per_kwp_rm` 4000,
   `panel_wp` 550, `afa_rate_rm_per_kwh` 0
 - 422 if the site has no bill with kWh; 502 if PVGIS is down
+- `GET /sites/{site_id}/feasibility/xlsx` (same query params) — Excel
+  workbook (`excel.py`, openpyxl): Summary, Monthly (with live `SUM` totals),
+  and Assumptions sheets; values stored as numbers with number formats
+- **PDF export is left to the frontend** (e.g. `@react-pdf/renderer`), built
+  from the JSON endpoint — the response includes site name/coordinates for it
 - Fully tested (tariff + maths unit tests, service/route integration tests
   with PVGIS mocked)
 
@@ -143,7 +155,7 @@ _Last updated: 2026-10-22_
   try/except-to-HTTPException mapping
 - `mise` tasks for dev/test/migrate/db lifecycle; pre-commit (ruff + `ty check`)
   and pre-push (full pytest) git hooks
-- Test suite: 134 tests passing, unit (no Docker) + integration (real Postgres via
+- Test suite: 147 tests passing, unit (no Docker) + integration (real Postgres via
   testcontainers, transaction-per-test isolation)
 - Standalone scripts for manual testing: `scripts/seed_test_site.py` (creates a
   throwaway Company+Project+Site chain), `scripts/mock_publish_reading.py`
@@ -189,11 +201,10 @@ _Last updated: 2026-10-22_
   (`gunicorn` is a dependency but unused so far).
 - **FR4 (TNB bill parsing)** — validated on a single domestic bill only;
   needs more sample bills (other tariffs, older layouts) to harden.
-- **FR5 (feasibility report) — calculation done, export not** — the JSON
-  endpoint exists; no PDF/Excel export yet. Assumption defaults (cost/kWp,
-  self-consumption 60%, zero export credit) are estimates to review; the
-  Solar ATAP export rate and the Energy Efficiency Incentive rebate (usage
-  <=1,000 kWh) aren't modelled, so savings are on the conservative side.
-  Consumption is assumed flat across the year (average of uploaded bills).
+- **FR5 (feasibility report) assumptions need review** — JSON + Excel export
+  done (PDF is the frontend's job). Assumption defaults (cost/kWp,
+  self-consumption 60%, zero export credit) are estimates; the Solar ATAP
+  export rate and the Energy Efficiency Incentive rebate (usage <=1,000 kWh)
+  aren't modelled, so savings are on the conservative side. Consumption is
+  assumed flat across the year (average of uploaded bills).
 - **FR6 (site visit checklist)** — no CRUD for this yet.
-- **FR8 (raw data export)** — no CSV/JSON export endpoint for readings.
