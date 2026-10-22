@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from app.modules.readings.irradiance import irradiance_wm2 as to_irradiance
+from pydantic import BaseModel, ConfigDict, computed_field
 
 
 class ReadingPayload(BaseModel):
@@ -45,3 +46,9 @@ class SensorReadingResponse(BaseModel):
     heading: float
     device_timestamp: datetime
     received_at: datetime
+
+    @computed_field
+    @property
+    def irradiance_wm2(self) -> float:
+        """Derived from cell_current using the configured reference cell Isc."""
+        return to_irradiance(self.cell_current)

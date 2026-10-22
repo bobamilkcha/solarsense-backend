@@ -65,10 +65,18 @@ _Last updated: 2026-10-22_
 - PVGIS (EU JRC) is free and requires no API key; `app/modules/benchmark/client.py`
   calls its `MRcalc` tool and averages across its historical years (2005-2020 for
   PVGIS-ERA5) per calendar month
-- Returns a raw side-by-side comparison, not a verdict — converting
-  `cell_voltage`/`cell_current` into true irradiance (W/m^2) needs a calibration
-  factor for the reference cell that hasn't been established yet, so the two
-  sides aren't on the same unit yet (see gaps below)
+- **Irradiance conversion** (`app/modules/readings/irradiance.py`): each
+  reading's `cell_current` → W/m^2 via `current / Isc_STC * 1000` (the 10 ohm
+  shunt keeps the cell near short-circuit, where current is proportional to
+  sunlight). `Isc_STC` is the `REFERENCE_CELL_ISC_A` setting — **currently a
+  0.22 A placeholder** for a generic 5V/1W cell, not a measured value.
+  Computed on the fly (not stored), so changing the setting re-calibrates
+  all past readings. Exposed as `irradiance_wm2` on `GET /sites/{id}/readings`
+- Benchmark integrates each Malaysian-time day's readings (trapezoid rule,
+  gaps >30 min not bridged) into kWh/m^2/day. Only days with >=90% of
+  07:00-19:00 covered count, so a short session doesn't look like a shaded
+  site. Returns device vs satellite daily irradiation and their ratio
+  (`device_to_satellite_ratio`: ~1.0 = as expected, well below = shading)
 - PVGIS failures surface as `502` (`BenchmarkUnavailableError`) rather than
   taking the request down
 - Fully tested (PVGIS client unit-tested via `httpx.MockTransport`, no real
@@ -114,7 +122,7 @@ _Last updated: 2026-10-22_
   try/except-to-HTTPException mapping
 - `mise` tasks for dev/test/migrate/db lifecycle; pre-commit (ruff + `ty check`)
   and pre-push (full pytest) git hooks
-- Test suite: 104 tests passing, unit (no Docker) + integration (real Postgres via
+- Test suite: 112 tests passing, unit (no Docker) + integration (real Postgres via
   testcontainers, transaction-per-test isolation)
 - Standalone scripts for manual testing: `scripts/seed_test_site.py` (creates a
   throwaway Company+Project+Site chain), `scripts/mock_publish_reading.py`
@@ -146,11 +154,13 @@ _Last updated: 2026-10-22_
   rate-limiting middleware wired up yet.
 - **NFR3 (5s MQTT latency) untested** — no timing test; should be fine against
   real hardware but hasn't been measured.
-- **NFR6 is now a raw comparison, not a calibrated one** — PVGIS integration is
-  done and live-verified, but there's no calibration factor yet to convert the
-  reference cell's `cell_voltage`/`cell_current` into true irradiance (W/m^2),
-  so the device and satellite figures sit side by side rather than being
-  directly compared/scored.
+- **Reference cell calibration is a placeholder** — `REFERENCE_CELL_ISC_A`
+  defaults to an estimated 0.22 A. Replace with the cell's datasheet Isc, or
+  better, calibrate against a pyranometer/known-good reference. Temperature
+  effect on Isc (~+0.05%/C) is ignored.
+- **Benchmark assumes the cell lies flat** — PVGIS figures are for a
+  horizontal surface; readings taken with the cell tilted aren't corrected
+  (tilt is recorded but not used yet).
 - **No caching on the benchmark endpoint** — every call hits PVGIS live; fine
   for an FYP demo, but would need caching (PVGIS data is static per
   coordinate+month) before any real traffic.

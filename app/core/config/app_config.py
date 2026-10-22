@@ -3,6 +3,7 @@ from urllib.parse import quote_plus
 
 from app.core.config.base_config import BaseConfig
 from pydantic import (
+    Field,
     PostgresDsn,
     computed_field,
     model_validator,
@@ -74,6 +75,12 @@ class AppConfig(BaseConfig):
     MQTT_READINGS_TOPIC: str = "solarsense/+/readings"
 
     OBJECT_STORAGE_DIR: str = "./data/object_storage"
+
+    # Reference solar cell's short-circuit current at standard test conditions
+    # (1000 W/m^2, 25 C), in amps. Used to convert measured cell current into
+    # irradiance. 0.22 A is a placeholder estimate for a generic 5V/1W cell —
+    # replace with the datasheet value or a field-calibrated figure.
+    REFERENCE_CELL_ISC_A: float = Field(default=0.22, gt=0)
 
     LOG_LEVEL: str = "INFO"
     LOG_HANDLERS: str | list[str] = "stream"
