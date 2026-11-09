@@ -85,7 +85,7 @@ Handle both shapes.
 | 401 | Missing, invalid or expired access token → refresh and retry. On `/auth/login`: wrong email or password. On `/auth/refresh`: logged out. |
 | 403 | Role not allowed. On `/auth/login`: the account is deactivated (password was correct). |
 | 404 | Not found **or belongs to another company**. The API never reveals that another company's resource exists, so treat both the same. |
-| 409 | Conflict: duplicate email or `device_id`, completing a visit with pending items, editing a completed visit, admin editing themselves. |
+| 409 | Conflict: duplicate email or `device_id` (device already paired to another site), completing a visit with pending items, editing a completed visit, admin editing themselves. |
 | 422 | Validation error, or a domain precondition (e.g. a feasibility report with no bills uploaded). Show `detail`. |
 | 502 | Satellite data (PVGIS) is unavailable. Benchmark and feasibility only; offer a retry. |
 
@@ -118,10 +118,31 @@ values as approximate.
 ### Projects and sites
 
 - `GET /projects`, `POST /projects` (admin)
-- `POST /projects/{project_id}/sites` (admin): needs `name`, `device_id` (must
-  match the ESP32's ID; 409 if taken), `location_lat`, `location_lng`
+- `POST /projects/{project_id}/sites` (admin): needs `name`, `location_lat`,
+  `location_lng`. `device_id` is optional (409 if another site has it); prefer
+  creating the site without one and pairing it as below.
 - `GET /sites`: all sites the user can see. Each has `project_id`; group by it
-  client-side.
+  client-side. `device_id` is `null` when no device is paired.
+
+### Pairing a device (admin)
+
+Each device has a sticker with a 4-character code (the end of its ID, e.g.
+`FE68`). Users never type the full ID.
+
+1. Ask the user to switch the device on and wait for Wi-Fi (about 30 s).
+2. Poll `GET /devices/unpaired` every few seconds. It lists devices that have
+   published in the last 10 minutes (`?within_minutes=` to change) and aren't
+   on any site, newest first. Show each as `short_code`, "seen N s ago" (from
+   `last_seen_at`) and `signal` (`good` / `fair` / `weak` / `unknown`).
+   Ask the user to match the code against the sticker.
+3. `PUT /sites/{id}/device` with `{"device_id": "<device_id from the list>"}`.
+   Replaces the site's current device, if any. 409 if the device is on another
+   site.
+4. `DELETE /sites/{id}/device` unpairs (e.g. when the survey ends) so the
+   device can be moved. The site keeps its past readings.
+
+An empty list means no unpaired device is online: check power and Wi-Fi.
+Readings sent before pairing are not stored.
 
 ### Live readings
 

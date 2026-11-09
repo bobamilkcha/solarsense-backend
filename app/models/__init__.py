@@ -1,5 +1,6 @@
 from app.models.base import Base, TimestampMixin
 from app.models.company import Company
+from app.models.device import Device
 from app.models.enums import ChecklistItemStatus, UserRole, VisitStatus
 from app.models.invitation import Invitation
 from app.models.project import Project
@@ -16,6 +17,7 @@ __all__ = [
     "User",
     "UserRole",
     "Company",
+    "Device",
     "Invitation",
     "Project",
     "RefreshToken",

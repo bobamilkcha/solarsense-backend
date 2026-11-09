@@ -13,6 +13,7 @@ class Site(TimestampMixin, Base):
         UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
-    device_id: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    # Null while no device is paired; set via PUT /sites/{id}/device.
+    device_id: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
     location_lat: Mapped[float] = mapped_column(Numeric(9, 6), nullable=False)
     location_lng: Mapped[float] = mapped_column(Numeric(9, 6), nullable=False)

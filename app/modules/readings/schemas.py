@@ -68,7 +68,7 @@ class SiteResponse(BaseModel):
     id: uuid.UUID
     project_id: uuid.UUID
     name: str
-    device_id: str
+    device_id: str | None
     location_lat: float
     location_lng: float
     created_at: datetime

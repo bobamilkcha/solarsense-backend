@@ -54,7 +54,7 @@ async def test_benchmark_returns_comparison(
     site = await _own_site(db, registered)
     readings_svc = ReadingsService(db)
     await readings_svc.record_reading(
-        site.device_id,
+        str(site.device_id),
         ReadingPayload(
             timestamp=datetime(2026, 7, 10, tzinfo=UTC),
             cell_voltage=3.42,

@@ -22,7 +22,7 @@ async def test_compare_combines_device_and_satellite_data(
     site = await _make_site(db)
     readings_svc = ReadingsService(db)
     await readings_svc.record_reading(
-        site.device_id,
+        str(site.device_id),
         ReadingPayload(
             timestamp=datetime(2026, 3, 15, tzinfo=UTC),
             cell_voltage=3.42,
@@ -74,12 +74,12 @@ async def test_compare_converts_device_readings_to_daily_irradiation(
     # shunt -> 0.1 A -> 500 W/m^2 -> 6 kWh/m^2 for the day.
     t = datetime(2026, 3, 15, 7, 0, tzinfo=LOCAL_TZ)
     while t <= datetime(2026, 3, 15, 19, 0, tzinfo=LOCAL_TZ):
-        await readings_svc.record_reading(site.device_id, _payload(t, 1.0))
+        await readings_svc.record_reading(str(site.device_id), _payload(t, 1.0))
         t += timedelta(minutes=10)
     # Incomplete day: a short midday session, excluded from the daily average.
     for minute in (0, 10, 20):
         ts = datetime(2026, 3, 16, 12, minute, tzinfo=LOCAL_TZ)
-        await readings_svc.record_reading(site.device_id, _payload(ts, 2.0))
+        await readings_svc.record_reading(str(site.device_id), _payload(ts, 2.0))
 
     async def fake_fetch(lat, lng, *, client=None):
         return {3: 155.0}  # 5 kWh/m^2/day over 31 days

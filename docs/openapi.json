@@ -620,6 +620,169 @@
         }
       }
     },
+    "/devices/unpaired": {
+      "get": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "List Unpaired Devices",
+        "description": "Devices that are online but not paired to any site, for the pairing picker.",
+        "operationId": "list_unpaired_devices_devices_unpaired_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "within_minutes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1440,
+              "minimum": 1,
+              "description": "Only devices that published this recently",
+              "default": 10,
+              "title": "Within Minutes"
+            },
+            "description": "Only devices that published this recently"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceResponse"
+                  },
+                  "title": "Response List Unpaired Devices Devices Unpaired Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sites/{site_id}/device": {
+      "put": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Pair Device",
+        "description": "Pair a device to the site. Replaces the site's current device, if any.",
+        "operationId": "pair_device_sites__site_id__device_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Site Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PairDeviceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Unpair Device",
+        "description": "Release the site's device so it can be moved to another site.",
+        "operationId": "unpair_device_sites__site_id__device_delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Site Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/sites/{site_id}/benchmark": {
       "get": {
         "tags": [
@@ -2258,6 +2421,63 @@
         ],
         "title": "ConsumptionSummary"
       },
+      "DeviceResponse": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id"
+          },
+          "first_seen_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "First Seen At"
+          },
+          "last_seen_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Seen At"
+          },
+          "last_rssi": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Rssi"
+          },
+          "short_code": {
+            "type": "string",
+            "title": "Short Code",
+            "description": "Matches the code on the device's sticker; show it in the picker.",
+            "readOnly": true
+          },
+          "signal": {
+            "type": "string",
+            "enum": [
+              "good",
+              "fair",
+              "weak",
+              "unknown"
+            ],
+            "title": "Signal",
+            "description": "Wi-Fi strength from `last_rssi`: good (>= -67 dBm), fair (>= -80), weak.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "device_id",
+          "first_seen_at",
+          "last_seen_at",
+          "last_rssi",
+          "short_code",
+          "signal"
+        ],
+        "title": "DeviceResponse"
+      },
       "FeasibilityReport": {
         "properties": {
           "site_id": {
@@ -2618,6 +2838,21 @@
         ],
         "title": "MonthBreakdown"
       },
+      "PairDeviceRequest": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Device Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "device_id"
+        ],
+        "title": "PairDeviceRequest"
+      },
       "ProjectCreateRequest": {
         "properties": {
           "name": {
@@ -2828,9 +3063,16 @@
             "title": "Name"
           },
           "device_id": {
-            "type": "string",
-            "maxLength": 200,
-            "minLength": 1,
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Device Id"
           },
           "location_lat": {
@@ -2849,7 +3091,6 @@
         "type": "object",
         "required": [
           "name",
-          "device_id",
           "location_lat",
           "location_lng"
         ],
@@ -2872,7 +3113,14 @@
             "title": "Name"
           },
           "device_id": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Device Id"
           },
           "location_lat": {

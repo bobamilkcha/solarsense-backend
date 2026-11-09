@@ -116,7 +116,7 @@ async def test_list_readings_returns_inserted_reading(
 
     svc = ReadingsService(db)
     await svc.record_reading(
-        site.device_id,
+        str(site.device_id),
         ReadingPayload(
             timestamp=datetime.now(UTC),
             cell_voltage=3.42,

@@ -35,9 +35,10 @@ class ProjectsService:
         if project is None or (company_id is not None and project.company_id != company_id):
             raise ProjectNotFoundError
 
-        existing = await self.db.scalar(select(Site).where(Site.device_id == data.device_id))
-        if existing is not None:
-            raise DeviceIdAlreadyExistsError
+        if data.device_id is not None:
+            existing = await self.db.scalar(select(Site).where(Site.device_id == data.device_id))
+            if existing is not None:
+                raise DeviceIdAlreadyExistsError
 
         site = Site(
             project_id=project_id,

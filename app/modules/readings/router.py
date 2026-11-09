@@ -60,7 +60,7 @@ async def export_readings(
         data = await run_in_threadpool(readings_to_csv, readings)
         media_type = "text/csv; charset=utf-8"
 
-    filename = f"readings-{site.device_id}-{datetime.now(UTC):%Y%m%d}.{format}"
+    filename = f"readings-{site.device_id or site.id}-{datetime.now(UTC):%Y%m%d}.{format}"
     return Response(
         content=data,
         media_type=media_type,

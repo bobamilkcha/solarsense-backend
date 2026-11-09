@@ -138,7 +138,7 @@ async def test_feasibility_applies_device_shading(
     t = datetime(2026, 3, 15, 7, 0, tzinfo=LOCAL_TZ)
     while t <= datetime(2026, 3, 15, 19, 0, tzinfo=LOCAL_TZ):
         await readings.record_reading(
-            site.device_id,
+            str(site.device_id),
             ReadingPayload(
                 timestamp=t,
                 cell_voltage=0.4,  # 0.04 A -> 200 W/m^2

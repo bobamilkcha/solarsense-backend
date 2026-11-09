@@ -13,6 +13,7 @@ import paho.mqtt.client as mqtt
 from app.core.config.app_config import app_config
 from app.core.database.database import sessionmanager
 from app.core.deps import logger
+from app.modules.devices.service import DevicesService
 from app.modules.readings.exceptions import UnknownDeviceError
 from app.modules.readings.schemas import ReadingPayload
 from app.modules.readings.service import ReadingsService
@@ -71,8 +72,10 @@ class MQTTSubscriber:
 
     async def _handle_reading(self, device_id: str, payload: ReadingPayload) -> None:
         async with sessionmanager.session() as db:
-            service = ReadingsService(db)
+            # Record every device we hear from, so unpaired ones show up in
+            # GET /devices/unpaired for an admin to pick.
+            await DevicesService(db).mark_seen(device_id, payload.rssi)
             try:
-                await service.record_reading(device_id, payload)
+                await ReadingsService(db).record_reading(device_id, payload)
             except UnknownDeviceError:
-                await logger.a_warning("mqtt_unknown_device", device_id=device_id)
+                await logger.a_info("mqtt_unpaired_device", device_id=device_id)

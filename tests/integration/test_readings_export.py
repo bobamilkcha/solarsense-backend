@@ -68,7 +68,7 @@ async def test_export_csv(
 ) -> None:
     monkeypatch.setattr(app_config, "REFERENCE_CELL_ISC_A", 0.2)
     site = await _own_site(db, registered)
-    await _seed(db, site.device_id)
+    await _seed(db, str(site.device_id))
 
     resp = await client.get(f"/sites/{site.id}/readings/export", headers=_auth_headers(registered))
 
@@ -92,7 +92,7 @@ async def test_export_date_range_filter(
     client: AsyncClient, db: AsyncSession, registered: dict[str, Any]
 ) -> None:
     site = await _own_site(db, registered)
-    await _seed(db, site.device_id)
+    await _seed(db, str(site.device_id))
 
     resp = await client.get(
         f"/sites/{site.id}/readings/export",
@@ -130,7 +130,7 @@ async def test_export_xlsx(
     client: AsyncClient, db: AsyncSession, registered: dict[str, Any]
 ) -> None:
     site = await _own_site(db, registered)
-    await _seed(db, site.device_id)
+    await _seed(db, str(site.device_id))
 
     resp = await client.get(
         f"/sites/{site.id}/readings/export",
@@ -157,7 +157,7 @@ async def test_export_xlsx_too_large_422s(
 ) -> None:
     monkeypatch.setattr("app.modules.readings.router.XLSX_MAX_ROWS", 2)
     site = await _own_site(db, registered)
-    await _seed(db, site.device_id)
+    await _seed(db, str(site.device_id))
 
     resp = await client.get(
         f"/sites/{site.id}/readings/export",

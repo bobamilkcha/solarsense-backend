@@ -8,8 +8,9 @@ script instead.
 
 Standalone: reads MQTT_* settings straight from .env instead of importing the app
 (importing app.core.config would eagerly stand up the DB engine). The target
-device_id must already exist as a Site.device_id row, or the subscriber will log
-`mqtt_unknown_device` and drop the message.
+device_id should be paired to a Site for the reading to be stored. An unpaired
+device is still recorded, so it shows up in GET /devices/unpaired (handy for
+testing the pairing flow without hardware).
 
 Usage:
     uv run python -m scripts.mock_publish_reading <device_id>

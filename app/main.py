@@ -15,6 +15,9 @@ from app.modules.bills.exceptions import BillsError
 from app.modules.bills.router import bills_router
 from app.modules.bills.router import router as bills_sites_router
 from app.modules.bills.service import BILLS_BUCKET
+from app.modules.devices.exceptions import DevicesError
+from app.modules.devices.router import router as devices_router
+from app.modules.devices.router import sites_router as devices_sites_router
 from app.modules.projects.exceptions import ProjectsError
 from app.modules.projects.router import router as projects_router
 from app.modules.readings.exceptions import ReadingsError
@@ -77,6 +80,11 @@ async def benchmark_error_handler(_: Request, exc: BenchmarkError) -> JSONRespon
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 
+@app.exception_handler(DevicesError)
+async def devices_error_handler(_: Request, exc: DevicesError) -> JSONResponse:
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+
 @app.exception_handler(BillsError)
 async def bills_error_handler(_: Request, exc: BillsError) -> JSONResponse:
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
@@ -111,6 +119,8 @@ if app_config.BACKEND_CORS_ORIGINS:
 app.include_router(auth_router)
 app.include_router(projects_router)
 app.include_router(readings_router)
+app.include_router(devices_router)
+app.include_router(devices_sites_router)
 app.include_router(benchmark_router)
 app.include_router(bills_sites_router)
 app.include_router(bills_router)

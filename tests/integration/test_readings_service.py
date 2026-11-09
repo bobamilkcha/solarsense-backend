@@ -65,7 +65,7 @@ async def test_record_reading_inserts_row(db: AsyncSession) -> None:
     site = await _make_site(db)
 
     svc = ReadingsService(db)
-    reading = await svc.record_reading(site.device_id, _payload())
+    reading = await svc.record_reading(str(site.device_id), _payload())
 
     assert reading.id is not None
     assert reading.site_id == site.id
@@ -76,7 +76,7 @@ async def test_record_reading_derives_current_from_voltage(db: AsyncSession) -> 
     site = await _make_site(db)
 
     svc = ReadingsService(db)
-    reading = await svc.record_reading(site.device_id, _payload(cell_voltage=5.0))
+    reading = await svc.record_reading(str(site.device_id), _payload(cell_voltage=5.0))
 
     assert reading.cell_current == Decimal("0.5")
 
@@ -99,7 +99,7 @@ async def test_record_reading_from_device_payload(db: AsyncSession) -> None:
         }
     )
 
-    reading = await ReadingsService(db).record_reading(site.device_id, payload)
+    reading = await ReadingsService(db).record_reading(str(site.device_id), payload)
 
     assert reading.cell_voltage == Decimal("1.84")
     assert reading.cell_current == Decimal("0.184")
@@ -145,10 +145,10 @@ async def test_list_readings_orders_newest_first(db: AsyncSession) -> None:
 
     svc = ReadingsService(db)
     older = await svc.record_reading(
-        site.device_id, _payload(timestamp=datetime(2026, 1, 1, tzinfo=UTC))
+        str(site.device_id), _payload(timestamp=datetime(2026, 1, 1, tzinfo=UTC))
     )
     newer = await svc.record_reading(
-        site.device_id, _payload(timestamp=datetime(2026, 6, 1, tzinfo=UTC))
+        str(site.device_id), _payload(timestamp=datetime(2026, 6, 1, tzinfo=UTC))
     )
 
     readings = await svc.list_readings(site.id, company_id=None)

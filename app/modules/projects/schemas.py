@@ -20,6 +20,7 @@ class ProjectResponse(BaseModel):
 
 class SiteCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=200)
-    device_id: str = Field(min_length=1, max_length=200)
+    # Optional: a site can be created first and paired later via PUT /sites/{id}/device.
+    device_id: str | None = Field(default=None, min_length=1, max_length=200)
     location_lat: float = Field(ge=-90, le=90)
     location_lng: float = Field(ge=-180, le=180)
