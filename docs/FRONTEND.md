@@ -144,6 +144,29 @@ Each device has a sticker with a 4-character code (the end of its ID, e.g.
 An empty list means no unpaired device is online: check power and Wi-Fi.
 Readings sent before pairing are not stored.
 
+### Changing a device (admin)
+
+Devices pair to **sites**, not projects. To change the device "on a project",
+change it on one of the project's sites. There's no separate endpoint: use the
+same `PUT /sites/{id}/device` as pairing.
+
+1. Find the site: `GET /sites`, filtered by `project_id`. If the project has
+   only one site, a "Change device" button on the project page can skip
+   straight to it.
+2. Open the pairing dialog (`GET /devices/unpaired`) and let the user pick
+   the new device.
+3. `PUT /sites/{id}/device` with the new `device_id`.
+
+What happens:
+
+- The old device is released at once and appears in `GET /devices/unpaired`,
+  ready for another site.
+- Readings belong to the site, not the device: past readings stay, and the
+  new device's readings join the same history.
+- 409 means the new device is paired to another site. Show "Unpair it from
+  that site first" (`DELETE /sites/{other_id}/device`).
+- Admin only; installers get 403, so hide the action for them.
+
 ### Live readings
 
 - `GET /sites/{id}/readings?limit=&offset=`: newest first, `limit` ≤ 1000. No
