@@ -677,6 +677,110 @@
         }
       }
     },
+    "/devices/{device_id}/config": {
+      "get": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Get Device Config",
+        "description": "Requested config and what the device reports it is using.\n\n`synced` is false while a requested change has not been confirmed by the\ndevice's status message; poll this until it flips to true.",
+        "operationId": "get_device_config_devices__device_id__config_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceConfigResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Set Device Config",
+        "description": "Request a new publish interval (5-3600 s). Retained, so an offline device gets it later.",
+        "operationId": "set_device_config_devices__device_id__config_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceConfigRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceConfigResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/sites/{site_id}/device": {
       "put": {
         "tags": [
@@ -2421,6 +2525,84 @@
         ],
         "title": "ConsumptionSummary"
       },
+      "DesiredConfig": {
+        "properties": {
+          "publish_interval_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publish Interval S",
+            "description": "Requested interval; null if never set"
+          },
+          "requested_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "publish_interval_s",
+          "requested_at"
+        ],
+        "title": "DesiredConfig"
+      },
+      "DeviceConfigRequest": {
+        "properties": {
+          "publish_interval_s": {
+            "type": "integer",
+            "maximum": 3600.0,
+            "minimum": 5.0,
+            "title": "Publish Interval S",
+            "description": "Seconds between readings, 5-3600 (the device rejects values outside this)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "publish_interval_s"
+        ],
+        "title": "DeviceConfigRequest"
+      },
+      "DeviceConfigResponse": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id"
+          },
+          "desired": {
+            "$ref": "#/components/schemas/DesiredConfig"
+          },
+          "reported": {
+            "$ref": "#/components/schemas/ReportedStatus"
+          },
+          "synced": {
+            "type": "boolean",
+            "title": "Synced",
+            "description": "True when nothing is pending (no request, or device confirms it)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "device_id",
+          "desired",
+          "reported",
+          "synced"
+        ],
+        "title": "DeviceConfigResponse"
+      },
       "DeviceResponse": {
         "properties": {
           "device_id": {
@@ -2922,6 +3104,52 @@
         ],
         "title": "ProjectResponse"
       },
+      "ReportedStatus": {
+        "properties": {
+          "online": {
+            "type": "boolean",
+            "title": "Online"
+          },
+          "fw": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fw",
+            "description": "Firmware version from the last status message"
+          },
+          "publish_interval_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publish Interval S",
+            "description": "What the device is actually using"
+          },
+          "last_seen_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Seen At",
+            "description": "Last time the device published anything"
+          }
+        },
+        "type": "object",
+        "required": [
+          "online",
+          "fw",
+          "publish_interval_s",
+          "last_seen_at"
+        ],
+        "title": "ReportedStatus"
+      },
       "SensorReadingResponse": {
         "properties": {
           "id": {
@@ -2943,23 +3171,58 @@
             "title": "Cell Current"
           },
           "ambient_temp": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Ambient Temp"
           },
           "humidity": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Humidity"
           },
           "roll": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Roll"
           },
           "pitch": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Pitch"
           },
           "heading": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Heading"
           },
           "rssi": {
@@ -2990,9 +3253,16 @@
             "readOnly": true
           },
           "tilt_deg": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Tilt Deg",
-            "description": "Angle of the device from horizontal, combining roll and pitch.\n\n0 is lying flat; this is the panel tilt angle when the device is\nmounted flush on a panel.",
+            "description": "Angle of the device from horizontal, combining roll and pitch.\n\n0 is lying flat; this is the panel tilt angle when the device is\nmounted flush on a panel. Null if the orientation sensor failed.",
             "readOnly": true
           }
         },

@@ -36,9 +36,10 @@ from fastapi.responses import JSONResponse
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
+async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     mqtt_subscriber = MQTTSubscriber(asyncio.get_running_loop())
     mqtt_subscriber.connect()
+    app.state.mqtt = mqtt_subscriber  # the devices API publishes config through it
 
     try:
         await ensure_bucket(BILLS_BUCKET)

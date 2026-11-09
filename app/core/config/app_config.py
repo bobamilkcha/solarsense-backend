@@ -75,14 +75,26 @@ class AppConfig(BaseConfig):
     MQTT_PASSWORD: str = ""
     MQTT_USE_TLS: bool = True
     MQTT_READINGS_TOPIC: str = "solarsense/+/readings"
+    MQTT_STATUS_TOPIC: str = "solarsense/+/status"
+    # Client ID prefix for the backend's own connection. A random suffix is
+    # added per process so several workers don't kick each other off the broker,
+    # and so it can never equal a device ID ("solarsense-<12 hex>").
+    MQTT_CLIENT_ID_PREFIX: str = "backend-solarsense"
 
     OBJECT_STORAGE_DIR: str = "./data/object_storage"
 
+    # Shunt resistor the reference cell is read across: current = voltage / shunt.
+    SHUNT_OHMS: float = Field(default=10.0, gt=0)
+
     # Reference solar cell's short-circuit current at standard test conditions
-    # (1000 W/m^2, 25 C), in amps. Used to convert measured cell current into
-    # irradiance. 0.22 A is a placeholder estimate for a generic 5V/1W cell —
-    # replace with the datasheet value or a field-calibrated figure.
-    REFERENCE_CELL_ISC_A: float = Field(default=0.22, gt=0)
+    # (1000 W/m^2, 25 C), in milliamps. Used to convert measured cell current
+    # into irradiance. 220 mA is a placeholder estimate for a generic 5V/1W
+    # cell — replace with the datasheet value or a field-calibrated figure.
+    ISC_STC_MA: float = Field(default=220.0, gt=0)
+
+    @property
+    def REFERENCE_CELL_ISC_A(self) -> float:  # noqa: N802
+        return self.ISC_STC_MA / 1000
 
     LOG_LEVEL: str = "INFO"
     LOG_HANDLERS: str | list[str] = "stream"

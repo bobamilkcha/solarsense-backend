@@ -58,15 +58,24 @@ _Last updated: 2026-10-22_
 
 ### Readings module (`app/modules/readings/`)
 - **MQTT ingestion**: `MQTTSubscriber` connects to EMQX Cloud (TLS) on app
-  startup, subscribes to `solarsense/+/readings`, and on each message:
+  startup, subscribes to `solarsense/+/readings` and `solarsense/+/status`, and on each
+  reading message:
   - Parses `device_id` from the topic path
   - Validates the payload against `ReadingPayload` (malformed JSON/payload is
     logged and dropped, not raised)
   - Looks up the `Site` by `device_id`; unknown devices are logged
     (`mqtt_unknown_device`) and dropped, not inserted
-  - Derives `cell_current = cell_voltage / 10.0` (shunt resistor) in the backend —
+  - Derives `cell_current = cell_voltage / SHUNT_OHMS` (10.0 Ω, from config) in the backend —
     firmware stays "dumb" per the hardware convention
-  - Inserts a `SensorReading` row
+  - Inserts a `SensorReading` row. A null `ts` (clock not synced) falls back to
+    server receive time; null sensor values (failed sensor) are stored as null
+- **Device status + remote config** (`devices` module): `status` messages (retained,
+  QoS 1) are stored on the `devices` row — online, fw, reported interval. An
+  offline Last Will only flips `online`. `PUT /devices/{id}/config` saves the
+  requested `publish_interval_s` (5–3600) and publishes it retained, QoS 1, to
+  `solarsense/<id>/config`; `GET` returns desired + reported + `synced`. The
+  backend's MQTT client ID is `backend-solarsense-<random>`, never a device ID.
+  Test without hardware: `uv run python -m scripts.mock_device <device_id>`.
 - **REST read API** (requires auth, company-scoped — `super_admin` sees every
   company's data, everyone else only their own):
   - `GET /sites` — list sites visible to the caller
@@ -232,8 +241,8 @@ _Last updated: 2026-10-22_
   rate-limiting middleware wired up yet.
 - **NFR3 (5s MQTT latency) untested** — no timing test; should be fine against
   real hardware but hasn't been measured.
-- **Reference cell calibration is a placeholder** — `REFERENCE_CELL_ISC_A`
-  defaults to an estimated 0.22 A. Replace with the cell's datasheet Isc, or
+- **Reference cell calibration is a placeholder** — `ISC_STC_MA`
+  defaults to an estimated 220 mA. Replace with the cell's datasheet Isc, or
   better, calibrate against a pyranometer/known-good reference. Temperature
   effect on Isc (~+0.05%/C) is ignored.
 - **Benchmark assumes the cell lies flat** — PVGIS figures are for a

@@ -34,7 +34,7 @@ BROKER_PORT = int(ENV.get("MQTT_BROKER_PORT") or "8883")
 USERNAME = ENV.get("MQTT_USERNAME") or ""
 PASSWORD = ENV.get("MQTT_PASSWORD") or ""
 USE_TLS = (ENV.get("MQTT_USE_TLS") or "true").lower() == "true"
-ISC_A = float(ENV.get("REFERENCE_CELL_ISC_A") or 0.22)
+ISC_A = float(ENV.get("ISC_STC_MA") or 220) / 1000
 
 
 def build_reading(at: datetime) -> MockReading:

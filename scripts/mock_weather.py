@@ -24,7 +24,7 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 LOCAL_TZ = ZoneInfo("Asia/Kuala_Lumpur")
-SHUNT_OHMS = 10.0  # matches app.modules.readings.service.SHUNT_RESISTANCE_OHMS
+SHUNT_OHMS = 10.0  # simulated shunt; the backend reads its own SHUNT_OHMS setting
 
 SOLAR_NOON_HOURS = 13.25
 HALF_DAY_HOURS = 6.1
@@ -93,9 +93,6 @@ class MockReading:
         body: dict[str, object] = {
             "ts": int(self.timestamp.timestamp()),
             "v_mv": v_mv,
-            # The firmware also sends its own current/irradiance; the backend ignores them.
-            "i_ma": round(v_mv / SHUNT_OHMS, 1),
-            "irr": round(self.irradiance_wm2),
             "temp": self.ambient_temp,
             "rh": self.humidity,
             "roll": self.roll,

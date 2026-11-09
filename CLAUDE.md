@@ -19,9 +19,10 @@ test, then REST endpoints for dashboard consumption.
 - ESP32-WROOM-32U, reading: 5V/1W reference solar cell + 10Ω shunt resistor (voltage;
   current is *derived in the backend* as `voltage / 10.0`, not on-device), SHT31
   (ambient temp/humidity), LSM303DLHC/GY-511 (tilt X/Y/Z, magnetometer heading).
-- MQTT topic: `solarsense/{device_id}/readings` — `device_id` lives in the topic path,
-  not the payload. Payload: timestamp, cell_voltage, ambient_temp, humidity, tilt_x,
-  tilt_y, tilt_z, heading.
+- MQTT topics: `solarsense/{device_id}/readings` (device→backend), `…/status`
+  (device→backend, retained; Last Will = offline), `…/config` (backend→device, retained,
+  QoS 1). `device_id` lives in the topic path. Readings payload: ts, v_mv, temp, rh,
+  roll, pitch, heading, rssi (sensor fields and ts may be null).
 - Convention: keep ESP32 firmware "dumb" (raw sensor values only); all derived
   calculations (current, irradiance, etc.) happen in the backend.
 

@@ -168,3 +168,26 @@ async def test_list_readings_other_company_raises(db: AsyncSession) -> None:
     svc = ReadingsService(db)
     with pytest.raises(SiteNotFoundError):
         await svc.list_readings(site.id, company_id=uuid.uuid4())
+
+
+async def test_record_reading_without_timestamp_uses_receive_time(db: AsyncSession) -> None:
+    site = await _make_site(db)
+
+    reading = await ReadingsService(db).record_reading(
+        str(site.device_id), _payload(timestamp=None)
+    )
+
+    assert abs((reading.device_timestamp - datetime.now(UTC)).total_seconds()) < 60
+
+
+async def test_record_reading_with_failed_sensors_stores_nulls(db: AsyncSession) -> None:
+    site = await _make_site(db)
+
+    reading = await ReadingsService(db).record_reading(
+        str(site.device_id),
+        _payload(ambient_temp=None, humidity=None, roll=None, pitch=None, heading=None),
+    )
+
+    assert reading.ambient_temp is None
+    assert reading.roll is None
+    assert reading.cell_voltage == Decimal("3.42")

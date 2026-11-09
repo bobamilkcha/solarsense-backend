@@ -38,11 +38,10 @@ def test_non_numeric_field_rejected() -> None:
         ReadingPayload(**_payload(cell_voltage="not-a-number"))
 
 
-def test_missing_timestamp_rejected() -> None:
+def test_missing_timestamp_falls_back_to_none() -> None:
     payload = _payload()
     del payload["timestamp"]
-    with pytest.raises(ValidationError):
-        ReadingPayload(**payload)
+    assert ReadingPayload(**payload).timestamp is None
 
 
 # Captured from a real device (solarsense-38BB0B71FE68).
@@ -86,10 +85,9 @@ def test_device_missing_voltage_rejected() -> None:
         ReadingPayload.model_validate(payload)
 
 
-def test_unsynced_device_clock_rejected() -> None:
+def test_unsynced_device_clock_falls_back_to_server_time() -> None:
     # Before NTP sync the ESP32 reports seconds since boot (i.e. 1970).
-    with pytest.raises(ValidationError):
-        ReadingPayload.model_validate({**DEVICE_PAYLOAD, "ts": 42})
+    assert ReadingPayload.model_validate({**DEVICE_PAYLOAD, "ts": 42}).timestamp is None
 
 
 def test_tilt_combines_roll_and_pitch() -> None:
@@ -111,3 +109,27 @@ def test_tilt_combines_roll_and_pitch() -> None:
     assert flat.tilt_deg == 0.0
     assert pitched.tilt_deg == pytest.approx(15.0)
     assert both.tilt_deg == pytest.approx(6.33, abs=0.01)
+
+
+def test_firmware_payload_with_nulls_parses() -> None:
+    p = ReadingPayload.model_validate(
+        {
+            "device": "solarsense-38BB0B71FE68",
+            "ts": None,
+            "v_mv": 1850,
+            "temp": None,
+            "rh": None,
+            "roll": None,
+            "pitch": None,
+            "heading": None,
+            "rssi": -71,
+        }
+    )
+    assert p.timestamp is None
+    assert p.cell_voltage == 1.85
+    assert p.ambient_temp is None
+    assert p.roll is None
+
+
+def test_unsynced_epoch_timestamp_treated_as_missing() -> None:
+    assert ReadingPayload(**_payload(timestamp=12)).timestamp is None

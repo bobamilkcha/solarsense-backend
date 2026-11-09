@@ -8,6 +8,7 @@ import csv
 import io
 from collections.abc import Sequence
 from datetime import datetime
+from typing import SupportsFloat
 from zoneinfo import ZoneInfo
 
 from app.models import SensorReading
@@ -40,6 +41,10 @@ def _utc(ts: datetime) -> datetime:
     return ts.astimezone(ZoneInfo("UTC"))
 
 
+def _num(v: SupportsFloat | None) -> float | None:
+    return None if v is None else float(v)
+
+
 def _values(r: SensorReading) -> list[object]:
     return [
         _utc(r.device_timestamp),
@@ -47,11 +52,11 @@ def _values(r: SensorReading) -> list[object]:
         float(r.cell_voltage),
         float(r.cell_current),
         round(irradiance_wm2(float(r.cell_current)), 2),
-        float(r.ambient_temp),
-        float(r.humidity),
-        float(r.roll),
-        float(r.pitch),
-        float(r.heading),
+        _num(r.ambient_temp),
+        _num(r.humidity),
+        _num(r.roll),
+        _num(r.pitch),
+        _num(r.heading),
         r.rssi,
         _utc(r.received_at),
     ]

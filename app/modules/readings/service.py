@@ -1,7 +1,8 @@
 import uuid
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 
+from app.core.config.app_config import app_config
 from app.models import Project, SensorReading, Site
 from app.modules.readings.exceptions import (
     InvalidDateRangeError,
@@ -11,8 +12,6 @@ from app.modules.readings.exceptions import (
 from app.modules.readings.schemas import ReadingPayload
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-SHUNT_RESISTANCE_OHMS = 10.0
 
 
 class ReadingsService:
@@ -77,14 +76,14 @@ class ReadingsService:
         reading = SensorReading(
             site_id=site.id,
             cell_voltage=payload.cell_voltage,
-            cell_current=payload.cell_voltage / SHUNT_RESISTANCE_OHMS,
+            cell_current=payload.cell_voltage / app_config.SHUNT_OHMS,
             ambient_temp=payload.ambient_temp,
             humidity=payload.humidity,
             roll=payload.roll,
             pitch=payload.pitch,
             heading=payload.heading,
             rssi=payload.rssi,
-            device_timestamp=payload.timestamp,
+            device_timestamp=payload.timestamp or datetime.now(UTC),
         )
 
         self.db.add(reading)

@@ -4,7 +4,7 @@ from datetime import timedelta
 from app.models import UserRole
 from app.modules.auth.deps import CurrentUser, company_scope, require_roles
 from app.modules.devices import schemas
-from app.modules.devices.deps import DevicesServiceDep
+from app.modules.devices.deps import ConfigPublisherDep, DevicesServiceDep
 from app.modules.readings.schemas import SiteResponse
 from fastapi import APIRouter, Query
 
@@ -26,6 +26,32 @@ async def list_unpaired_devices(
 ):
     """Devices that are online but not paired to any site, for the pairing picker."""
     return await service.list_unpaired(timedelta(minutes=within_minutes))
+
+
+@router.get("/{device_id}/config", response_model=schemas.DeviceConfigResponse)
+async def get_device_config(device_id: str, current_user: CurrentUser, service: DevicesServiceDep):
+    """Requested config and what the device reports it is using.
+
+    `synced` is false while a requested change has not been confirmed by the
+    device's status message; poll this until it flips to true.
+    """
+    device = await service.get_config(device_id, company_scope(current_user))
+    return schemas.config_response(device)
+
+
+@router.put("/{device_id}/config", response_model=schemas.DeviceConfigResponse)
+async def set_device_config(
+    device_id: str,
+    data: schemas.DeviceConfigRequest,
+    current_user: CurrentUser,
+    service: DevicesServiceDep,
+    publisher: ConfigPublisherDep,
+):
+    """Request a new publish interval (5-3600 s). Retained, so an offline device gets it later."""
+    device = await service.set_desired_config(
+        device_id, company_scope(current_user), publisher, data.publish_interval_s
+    )
+    return schemas.config_response(device)
 
 
 @sites_router.put("/{site_id}/device", response_model=SiteResponse)

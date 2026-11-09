@@ -128,7 +128,7 @@ async def test_feasibility_applies_device_shading(
     fake_pvgis: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(app_config, "REFERENCE_CELL_ISC_A", 0.2)
+    monkeypatch.setattr(app_config, "ISC_STC_MA", 200.0)
     site = await _own_site(db, registered)
     await _add_bill(db, site.id)
 

@@ -66,7 +66,7 @@ async def test_export_csv(
     registered: dict[str, Any],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(app_config, "REFERENCE_CELL_ISC_A", 0.2)
+    monkeypatch.setattr(app_config, "ISC_STC_MA", 200.0)
     site = await _own_site(db, registered)
     await _seed(db, str(site.device_id))
 

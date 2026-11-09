@@ -22,26 +22,33 @@ class ReadingPayload(BaseModel):
 
     Example from the device:
 
-        {"device": "solarsense-38BB0B71FE68", "ts": 1794226617, "v_mv": 0,
-         "i_ma": 0.0, "irr": 0, "temp": 24.21, "rh": 61.95, "roll": 5.9,
-         "pitch": 2.3, "heading": 267, "rssi": -59}
+        {"device": "solarsense-38BB0B71FE68", "ts": 1794226353, "v_mv": 1850,
+         "temp": 24.22, "rh": 61.81, "roll": 5.9, "pitch": 2.5, "heading": 267,
+         "rssi": -71}
 
     The device's short field names are accepted as aliases and mapped to the
-    backend's names; `v_mv` (millivolts) is converted to volts. `device`,
-    `i_ma` and `irr` are ignored: the device ID comes from the MQTT topic, and
-    current and irradiance are derived by the backend so there is one source
-    of truth for calibration.
+    backend's names; `v_mv` (millivolts) is converted to volts. `ts` is null
+    until the device's clock syncs, and `temp`, `rh`, `roll`, `pitch` and
+    `heading` are null when that sensor failed. `device` is ignored (the ID
+    comes from the MQTT topic), as are `i_ma` and `irr` from older firmware:
+    current and irradiance are derived by the backend so there is one source of
+    truth for calibration.
     """
 
     model_config = ConfigDict(extra="ignore")
 
-    timestamp: datetime = Field(validation_alias=AliasChoices("timestamp", "ts"))
+    # None means the device had no valid clock: the server receive time is used.
+    timestamp: datetime | None = Field(
+        default=None, validation_alias=AliasChoices("timestamp", "ts")
+    )
     cell_voltage: float
-    ambient_temp: float = Field(validation_alias=AliasChoices("ambient_temp", "temp"))
-    humidity: float = Field(validation_alias=AliasChoices("humidity", "rh"))
-    roll: float
-    pitch: float
-    heading: float
+    ambient_temp: float | None = Field(
+        default=None, validation_alias=AliasChoices("ambient_temp", "temp")
+    )
+    humidity: float | None = Field(default=None, validation_alias=AliasChoices("humidity", "rh"))
+    roll: float | None = None
+    pitch: float | None = None
+    heading: float | None = None
     rssi: int | None = None
 
     @model_validator(mode="before")
@@ -55,11 +62,12 @@ class ReadingPayload(BaseModel):
 
     @field_validator("timestamp")
     @classmethod
-    def _clock_synced(cls, ts: datetime) -> datetime:
+    def _clock_synced(cls, ts: datetime | None) -> datetime | None:
         # Before NTP sync the ESP32 clock counts from 1970; such a reading
-        # would land decades in the past and can't be placed on a chart.
-        if ts.year < MIN_VALID_YEAR:
-            raise ValueError("device clock not synced (timestamp before 2024)")
+        # would land decades in the past and can't be placed on a chart, so
+        # treat it as "no timestamp" and let the server stamp it.
+        if ts is not None and ts.year < MIN_VALID_YEAR:
+            return None
         return ts
 
 
@@ -80,11 +88,11 @@ class SensorReadingResponse(BaseModel):
     site_id: uuid.UUID
     cell_voltage: float
     cell_current: float
-    ambient_temp: float
-    humidity: float
-    roll: float
-    pitch: float
-    heading: float
+    ambient_temp: float | None
+    humidity: float | None
+    roll: float | None
+    pitch: float | None
+    heading: float | None
     rssi: int | None
     device_timestamp: datetime
     received_at: datetime
@@ -97,11 +105,13 @@ class SensorReadingResponse(BaseModel):
 
     @computed_field
     @property
-    def tilt_deg(self) -> float:
+    def tilt_deg(self) -> float | None:
         """Angle of the device from horizontal, combining roll and pitch.
 
         0 is lying flat; this is the panel tilt angle when the device is
-        mounted flush on a panel.
+        mounted flush on a panel. Null if the orientation sensor failed.
         """
+        if self.roll is None or self.pitch is None:
+            return None
         cos_tilt = math.cos(math.radians(self.roll)) * math.cos(math.radians(self.pitch))
         return round(math.degrees(math.acos(max(-1.0, min(1.0, cos_tilt)))), 2)

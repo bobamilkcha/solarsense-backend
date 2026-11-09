@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from app.models.base import Base
-from sqlalchemy import DateTime, SmallInteger, String
+from sqlalchemy import Boolean, DateTime, Integer, SmallInteger, String
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -24,3 +24,18 @@ class Device(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     last_rssi: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+
+    # Latest `solarsense/<id>/status` message: what the device is ACTUALLY using.
+    # An offline Will only flips `online`; fw and the interval keep their last values.
+    online: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    fw: Mapped[str | None] = mapped_column(String, nullable=True)
+    reported_publish_interval_s: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # What an admin asked for via PUT /devices/{id}/config (null = never requested).
+    desired_publish_interval_s: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    desired_requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

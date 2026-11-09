@@ -66,7 +66,7 @@ def _payload(ts: datetime, cell_voltage: float) -> ReadingPayload:
 async def test_compare_converts_device_readings_to_daily_irradiation(
     db: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(app_config, "REFERENCE_CELL_ISC_A", 0.2)
+    monkeypatch.setattr(app_config, "ISC_STC_MA", 200.0)
     site = await _make_site(db)
     readings_svc = ReadingsService(db)
 

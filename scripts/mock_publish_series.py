@@ -151,9 +151,9 @@ async def _insert_db(
     device_id: str, readings: list[MockReading], start: datetime, end: datetime, replace: bool
 ) -> None:
     # Imported here so --via mqtt / --dry-run don't need the app or a database.
+    from app.core.config.app_config import app_config
     from app.core.database.database import sessionmanager
     from app.models import SensorReading, Site
-    from app.modules.readings.service import SHUNT_RESISTANCE_OHMS
     from sqlalchemy import delete, select
 
     async with sessionmanager.session() as db:
@@ -179,7 +179,7 @@ async def _insert_db(
                 SensorReading(
                     site_id=site.id,
                     cell_voltage=r.cell_voltage,
-                    cell_current=r.cell_voltage / SHUNT_RESISTANCE_OHMS,
+                    cell_current=r.cell_voltage / app_config.SHUNT_OHMS,
                     ambient_temp=r.ambient_temp,
                     humidity=r.humidity,
                     roll=r.roll,
@@ -234,7 +234,7 @@ def main() -> None:
     parser.add_argument(
         "--isc",
         type=float,
-        help="Reference cell Isc in amps (default: .env REFERENCE_CELL_ISC_A or 0.22)",
+        help="Reference cell Isc in amps (default: .env ISC_STC_MA / 1000, or 0.22)",
     )
     parser.add_argument("--seed", type=int, help="Random seed for repeatable data")
     parser.add_argument(
@@ -251,7 +251,7 @@ def main() -> None:
 
     opts = MockOptions(
         interval=timedelta(minutes=args.interval),
-        isc_a=args.isc or float(ENV.get("REFERENCE_CELL_ISC_A") or 0.22),
+        isc_a=args.isc or float(ENV.get("ISC_STC_MA") or 220) / 1000,
         shade_factor=args.shade,
         tilt_deg=args.tilt,
         daylight_only=args.daylight_only,
