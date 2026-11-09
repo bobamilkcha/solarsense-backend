@@ -34,9 +34,8 @@ async def _seed(db: AsyncSession, device_id: str) -> None:
                 cell_voltage=volts,
                 ambient_temp=31.5,
                 humidity=68.2,
-                tilt_x=1.0,
-                tilt_y=-2.0,
-                tilt_z=89.0,
+                pitch=1.0,
+                roll=-2.0,
                 heading=180.0,
             ),
         )

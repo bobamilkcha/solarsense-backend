@@ -132,7 +132,7 @@ def _publish_mqtt(device_id: str, readings: list[MockReading], rate: float) -> N
     last = None
     try:
         for i, reading in enumerate(readings, start=1):
-            last = client.publish(topic, json.dumps(reading.payload()), qos=1)
+            last = client.publish(topic, json.dumps(reading.payload(device_id)), qos=1)
             # Throttle to `rate` messages per second.
             delay = started + i / rate - time.monotonic()
             if delay > 0:
@@ -182,10 +182,10 @@ async def _insert_db(
                     cell_current=r.cell_voltage / SHUNT_RESISTANCE_OHMS,
                     ambient_temp=r.ambient_temp,
                     humidity=r.humidity,
-                    tilt_x=r.tilt_x,
-                    tilt_y=r.tilt_y,
-                    tilt_z=r.tilt_z,
+                    roll=r.roll,
+                    pitch=r.pitch,
                     heading=r.heading,
+                    rssi=r.rssi,
                     device_timestamp=r.timestamp,
                 )
                 for r in readings[i : i + DB_BATCH]

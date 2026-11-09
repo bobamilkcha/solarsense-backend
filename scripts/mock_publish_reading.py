@@ -58,7 +58,7 @@ def main() -> None:
 
     reading = build_reading(at)
     topic = f"solarsense/{args.device_id}/readings"
-    payload = reading.payload()
+    payload = reading.payload(args.device_id)
 
     client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
     if USERNAME:

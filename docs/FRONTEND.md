@@ -104,8 +104,10 @@ Reading fields (`GET /sites/{id}/readings`):
 | `irradiance_wm2` | W/m², sunlight strength. 1000 is full sun; 0 is night. **The main number to chart.** |
 | `ambient_temp` | °C |
 | `humidity` | % |
-| `tilt_x`, `tilt_y`, `tilt_z` | accelerometer axes (device orientation) |
+| `roll`, `pitch` | degrees, device orientation from the accelerometer |
+| `tilt_deg` | degrees from horizontal, combining roll and pitch (computed by the backend). 0 is flat. **Use this as the panel tilt angle.** |
 | `heading` | degrees, magnetometer compass heading |
+| `rssi` | dBm, device Wi-Fi signal (e.g. -59). Closer to 0 is stronger; below about -80 is weak. May be `null` on older readings |
 | `device_timestamp` | when the device took the reading |
 
 Irradiance calibration is still a placeholder constant, so treat absolute

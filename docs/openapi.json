@@ -2715,21 +2715,28 @@
             "type": "number",
             "title": "Humidity"
           },
-          "tilt_x": {
+          "roll": {
             "type": "number",
-            "title": "Tilt X"
+            "title": "Roll"
           },
-          "tilt_y": {
+          "pitch": {
             "type": "number",
-            "title": "Tilt Y"
-          },
-          "tilt_z": {
-            "type": "number",
-            "title": "Tilt Z"
+            "title": "Pitch"
           },
           "heading": {
             "type": "number",
             "title": "Heading"
+          },
+          "rssi": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rssi"
           },
           "device_timestamp": {
             "type": "string",
@@ -2746,6 +2753,12 @@
             "title": "Irradiance Wm2",
             "description": "Derived from cell_current using the configured reference cell Isc.",
             "readOnly": true
+          },
+          "tilt_deg": {
+            "type": "number",
+            "title": "Tilt Deg",
+            "description": "Angle of the device from horizontal, combining roll and pitch.\n\n0 is lying flat; this is the panel tilt angle when the device is\nmounted flush on a panel.",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -2756,13 +2769,14 @@
           "cell_current",
           "ambient_temp",
           "humidity",
-          "tilt_x",
-          "tilt_y",
-          "tilt_z",
+          "roll",
+          "pitch",
           "heading",
+          "rssi",
           "device_timestamp",
           "received_at",
-          "irradiance_wm2"
+          "irradiance_wm2",
+          "tilt_deg"
         ],
         "title": "SensorReadingResponse"
       },

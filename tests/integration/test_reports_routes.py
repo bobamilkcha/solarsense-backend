@@ -144,9 +144,8 @@ async def test_feasibility_applies_device_shading(
                 cell_voltage=0.4,  # 0.04 A -> 200 W/m^2
                 ambient_temp=30,
                 humidity=70,
-                tilt_x=0,
-                tilt_y=0,
-                tilt_z=90,
+                pitch=0,
+                roll=0,
                 heading=180,
             ),
         )

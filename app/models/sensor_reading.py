@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from app.models.base import Base
-from sqlalchemy import DateTime, ForeignKey, Numeric
+from sqlalchemy import DateTime, ForeignKey, Numeric, SmallInteger
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -18,10 +18,11 @@ class SensorReading(Base):
     cell_current: Mapped[float] = mapped_column(Numeric(6, 4), nullable=False)
     ambient_temp: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False)
     humidity: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False)
-    tilt_x: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
-    tilt_y: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
-    tilt_z: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
+    roll: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False)
+    pitch: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False)
     heading: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
+    # Wi-Fi signal strength in dBm; null for readings from before it was sent.
+    rssi: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     device_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

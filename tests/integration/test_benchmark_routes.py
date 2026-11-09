@@ -60,9 +60,8 @@ async def test_benchmark_returns_comparison(
             cell_voltage=3.42,
             ambient_temp=31.5,
             humidity=68.2,
-            tilt_x=12.3,
-            tilt_y=-4.1,
-            tilt_z=89.7,
+            pitch=12.3,
+            roll=-4.1,
             heading=215.6,
         ),
     )

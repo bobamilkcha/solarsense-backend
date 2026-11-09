@@ -82,23 +82,30 @@ class MockReading:
     cell_voltage: float
     ambient_temp: float
     humidity: float
-    tilt_x: float
-    tilt_y: float
-    tilt_z: float
+    roll: float
+    pitch: float
     heading: float
+    rssi: int
 
-    def payload(self) -> dict[str, object]:
-        """The JSON body an ESP32 would publish."""
-        return {
-            "timestamp": self.timestamp.isoformat(),
-            "cell_voltage": self.cell_voltage,
-            "ambient_temp": self.ambient_temp,
-            "humidity": self.humidity,
-            "tilt_x": self.tilt_x,
-            "tilt_y": self.tilt_y,
-            "tilt_z": self.tilt_z,
-            "heading": self.heading,
+    def payload(self, device_id: str | None = None) -> dict[str, object]:
+        """The JSON body the ESP32 firmware publishes (same field names and units)."""
+        v_mv = round(self.cell_voltage * 1000)
+        body: dict[str, object] = {
+            "ts": int(self.timestamp.timestamp()),
+            "v_mv": v_mv,
+            # The firmware also sends its own current/irradiance; the backend ignores them.
+            "i_ma": round(v_mv / SHUNT_OHMS, 1),
+            "irr": round(self.irradiance_wm2),
+            "temp": self.ambient_temp,
+            "rh": self.humidity,
+            "roll": self.roll,
+            "pitch": self.pitch,
+            "heading": round(self.heading),
+            "rssi": self.rssi,
         }
+        if device_id is not None:
+            body = {"device": device_id, **body}
+        return body
 
 
 def _sun_shape(hours: float) -> float:
@@ -187,10 +194,10 @@ def generate(start: datetime, end: datetime, opts: MockOptions) -> Iterator[Mock
             cell_voltage=round(voltage, 4),
             ambient_temp=round(temp, 2),
             humidity=round(min(max(humidity, 40.0), 100.0), 2),
-            tilt_x=round(opts.tilt_deg + rng.gauss(0, 0.2), 2),
-            tilt_y=round(rng.gauss(0, 0.2), 2),
-            tilt_z=round(90.0 - opts.tilt_deg + rng.gauss(0, 0.2), 2),
+            roll=round(rng.gauss(0, 0.2), 1),
+            pitch=round(opts.tilt_deg + rng.gauss(0, 0.2), 1),
             heading=round((opts.heading_deg + rng.gauss(0, 0.5)) % 360, 2),
+            rssi=round(-60 + rng.gauss(0, 3)),
         )
         t += opts.interval
 

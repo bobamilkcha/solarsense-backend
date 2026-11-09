@@ -48,18 +48,17 @@ async def _make_site(db: AsyncSession, **overrides) -> Site:
 
 
 def _payload(**overrides) -> ReadingPayload:
-    data = {
+    data: dict[str, object] = {
         "timestamp": datetime.now(UTC),
         "cell_voltage": 3.42,
         "ambient_temp": 31.5,
         "humidity": 68.2,
-        "tilt_x": 12.3,
-        "tilt_y": -4.1,
-        "tilt_z": 89.7,
+        "pitch": 12.3,
+        "roll": -4.1,
         "heading": 215.6,
     }
     data.update(overrides)
-    return ReadingPayload(**data)
+    return ReadingPayload.model_validate(data)
 
 
 async def test_record_reading_inserts_row(db: AsyncSession) -> None:
@@ -80,6 +79,34 @@ async def test_record_reading_derives_current_from_voltage(db: AsyncSession) -> 
     reading = await svc.record_reading(site.device_id, _payload(cell_voltage=5.0))
 
     assert reading.cell_current == Decimal("0.5")
+
+
+async def test_record_reading_from_device_payload(db: AsyncSession) -> None:
+    site = await _make_site(db)
+    payload = ReadingPayload.model_validate(
+        {
+            "device": site.device_id,
+            "ts": 1794226617,
+            "v_mv": 1840,
+            "i_ma": 999.0,  # device's own value; must be ignored
+            "irr": 999,
+            "temp": 24.21,
+            "rh": 61.95,
+            "roll": 5.9,
+            "pitch": 2.3,
+            "heading": 267,
+            "rssi": -59,
+        }
+    )
+
+    reading = await ReadingsService(db).record_reading(site.device_id, payload)
+
+    assert reading.cell_voltage == Decimal("1.84")
+    assert reading.cell_current == Decimal("0.184")
+    assert reading.roll == Decimal("5.9")
+    assert reading.pitch == Decimal("2.3")
+    assert reading.rssi == -59
+    assert reading.device_timestamp == datetime.fromtimestamp(1794226617, UTC)
 
 
 async def test_record_reading_unknown_device_raises(db: AsyncSession) -> None:

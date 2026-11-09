@@ -80,10 +80,10 @@ class ReadingsService:
             cell_current=payload.cell_voltage / SHUNT_RESISTANCE_OHMS,
             ambient_temp=payload.ambient_temp,
             humidity=payload.humidity,
-            tilt_x=payload.tilt_x,
-            tilt_y=payload.tilt_y,
-            tilt_z=payload.tilt_z,
+            roll=payload.roll,
+            pitch=payload.pitch,
             heading=payload.heading,
+            rssi=payload.rssi,
             device_timestamp=payload.timestamp,
         )
 

@@ -28,9 +28,8 @@ async def test_compare_combines_device_and_satellite_data(
             cell_voltage=3.42,
             ambient_temp=31.5,
             humidity=68.2,
-            tilt_x=12.3,
-            tilt_y=-4.1,
-            tilt_z=89.7,
+            pitch=12.3,
+            roll=-4.1,
             heading=215.6,
         ),
     )
@@ -58,9 +57,8 @@ def _payload(ts: datetime, cell_voltage: float) -> ReadingPayload:
         cell_voltage=cell_voltage,
         ambient_temp=31.5,
         humidity=68.2,
-        tilt_x=0.0,
-        tilt_y=0.0,
-        tilt_z=90.0,
+        pitch=0.0,
+        roll=0.0,
         heading=180.0,
     )
 

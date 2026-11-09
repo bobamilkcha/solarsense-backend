@@ -28,10 +28,10 @@ COLUMNS = [
     "irradiance_wm2",
     "ambient_temp_c",
     "humidity_pct",
-    "tilt_x",
-    "tilt_y",
-    "tilt_z",
+    "roll_deg",
+    "pitch_deg",
     "heading_deg",
+    "rssi_dbm",
     "received_at_utc",
 ]
 
@@ -49,10 +49,10 @@ def _values(r: SensorReading) -> list[object]:
         round(irradiance_wm2(float(r.cell_current)), 2),
         float(r.ambient_temp),
         float(r.humidity),
-        float(r.tilt_x),
-        float(r.tilt_y),
-        float(r.tilt_z),
+        float(r.roll),
+        float(r.pitch),
         float(r.heading),
+        r.rssi,
         _utc(r.received_at),
     ]
 
