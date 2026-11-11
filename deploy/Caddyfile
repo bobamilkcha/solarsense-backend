@@ -1,0 +1,16 @@
+# One origin for everything: no CORS, and the refresh cookie stays same-site.
+#   https://<domain>/      -> the built frontend (./web)
+#   https://<domain>/api/* -> the API, with the /api prefix removed
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	handle_path /api/* {
+		reverse_proxy api:8000
+	}
+
+	handle {
+		root * /srv/web
+		try_files {path} /index.html
+		file_server
+	}
+}

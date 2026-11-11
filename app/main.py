@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from app.core.config.app_config import app_config
 from app.core.database.database import sessionmanager
-from app.core.deps import logger
+from app.core.deps import DBSession, logger
 from app.core.middlewares import LoggingMiddleware
 from app.core.storage.object_storage import ensure_bucket
 from app.modules.auth.exceptions import AuthError
@@ -33,6 +33,7 @@ from app.modules.visits.router import sites_router as visits_sites_router
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 
 @asynccontextmanager
@@ -104,6 +105,24 @@ async def users_error_handler(_: Request, exc: UsersError) -> JSONResponse:
 @app.exception_handler(VisitsError)
 async def visits_error_handler(_: Request, exc: VisitsError) -> JSONResponse:
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+
+@app.get("/health", tags=["health"], include_in_schema=False)
+async def health(request: Request, db: DBSession) -> JSONResponse:
+    """Liveness for Docker and uptime monitors. 503 only if the database is unreachable.
+
+    `mqtt` is reported but does not fail the check: a broker outage is not fixed
+    by restarting this container, and paho reconnects on its own.
+    """
+    try:
+        await db.execute(text("SELECT 1"))
+    except Exception as exc:
+        await logger.a_error("health_db_failed", error=str(exc))
+        return JSONResponse(status_code=503, content={"status": "error", "database": False})
+
+    mqtt_client = getattr(request.app.state, "mqtt", None)
+    connected = bool(mqtt_client and mqtt_client.is_connected())
+    return JSONResponse(content={"status": "ok", "database": True, "mqtt": connected})
 
 
 app.add_middleware(LoggingMiddleware)

@@ -226,3 +226,7 @@ __marimo__/
 .agents/
 .claude/
 skills-lock.json
+web/
+backups/
+.env
+.env.prod

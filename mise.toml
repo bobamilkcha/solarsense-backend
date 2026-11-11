@@ -57,3 +57,19 @@ run = "uv run pytest --cov=app --cov-report=html $@"
 [tasks.export-openapi]
 description = "Write the OpenAPI spec to docs/openapi.json (hand it to the frontend)"
 run = "uv run python -m scripts.export_openapi"
+
+[tasks.local-up]
+description = "Run the production stack on this PC (needs .env.prod; ngrok tunnel starts if NGROK_* are set)"
+run = "ENV_FILE=.env.prod docker compose --env-file .env.prod -f docker-compose.prod.yml -f docker-compose.local.yml up -d --build"
+
+[tasks.local-down]
+description = "Stop the local production stack (keeps the data volumes)"
+run = "ENV_FILE=.env.prod docker compose --env-file .env.prod -f docker-compose.prod.yml -f docker-compose.local.yml down"
+
+[tasks.local-logs]
+description = "Follow the local production stack's logs (e.g. mise run local-logs api)"
+run = "ENV_FILE=.env.prod docker compose --env-file .env.prod -f docker-compose.prod.yml -f docker-compose.local.yml logs -f --tail 100 $@"
+
+[tasks.local-backup]
+description = "Dump the local production database to backups/ (keeps 7)"
+run = "ENV_FILE=.env.prod COMPOSE_FILES='-f docker-compose.prod.yml -f docker-compose.local.yml' ./deploy/backup.sh"

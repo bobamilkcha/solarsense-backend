@@ -1,0 +1,20 @@
+# Run the production stack on your own PC and publish it through a free ngrok tunnel.
+# Layered on top of docker-compose.prod.yml (use the mise tasks `local-up` / `local-down`).
+#
+# ngrok terminates HTTPS, so Caddy serves plain HTTP here (no certificate, no domain
+# purchase, no open router ports). Also reachable on this PC at http://localhost:8080.
+services:
+  caddy:
+    environment:
+      SITE_ADDRESS: ":80"
+    ports: !override
+      - "127.0.0.1:8080:80"
+
+  tunnel:
+    image: ngrok/ngrok:latest
+    restart: unless-stopped
+    command: ["http", "caddy:80", "--url=https://${NGROK_DOMAIN}"]
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    depends_on:
+      - caddy

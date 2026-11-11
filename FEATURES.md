@@ -76,6 +76,19 @@ _Last updated: 2026-10-22_
   `solarsense/<id>/config`; `GET` returns desired + reported + `synced`. The
   backend's MQTT client ID is `backend-solarsense-<random>`, never a device ID.
   Test without hardware: `uv run python -m scripts.mock_device <device_id>`.
+- **MQTT resilience**: paho's background thread makes the first connection
+  (retrying forever if the broker is unreachable at startup) and reconnects
+  automatically after any drop, with 1–60 s backoff. Subscriptions are re-applied
+  in `on_connect` on every reconnect. Keepalive is 30 s (`MQTT_KEEPALIVE`), so a
+  silent drop like lost Wi-Fi is noticed in about 45 s. Callback exceptions
+  can't kill the network thread, and failed DB writes are logged
+  (`mqtt_ingest_failed`) instead of disappearing. Logged events:
+  `mqtt_connecting`, `mqtt_connected` / `mqtt_reconnected`, `mqtt_subscribed`,
+  `mqtt_connection_lost` (with reason code), `mqtt_connect_failed`,
+  `mqtt_connect_refused`. Covered by `tests/integration/test_mqtt_reconnect.py`
+  (real Mosquitto behind a proxy that simulates a connection reset, a silent
+  network drop, a broker that's unreachable at startup, and a crashing handler).
+  Manual field check: `docs/DEPLOY.md`, "Network-drop check".
 - **REST read API** (requires auth, company-scoped — `super_admin` sees every
   company's data, everyone else only their own):
   - `GET /sites` — list sites visible to the caller
@@ -234,9 +247,6 @@ _Last updated: 2026-10-22_
   pre-commit/pre-push hooks; no `.github/workflows` or equivalent.
 - **No pagination metadata** — `GET /sites/{site_id}/readings` takes
   `limit`/`offset` but doesn't return a total count or next-page cursor.
-- **MQTT reconnect/resilience untested** — `MQTTSubscriber.connect()` catches a
-  failed initial connection, but reconnect behavior after a broker drop (paho's
-  automatic reconnect) hasn't been exercised.
 - **No rate limiting** — `RATE_LIMITER_ENABLED` exists in config but there's no
   rate-limiting middleware wired up yet.
 - **NFR3 (5s MQTT latency) untested** — no timing test; should be fine against
@@ -251,8 +261,11 @@ _Last updated: 2026-10-22_
 - **No caching on the benchmark endpoint** — every call hits PVGIS live; fine
   for an FYP demo, but would need caching (PVGIS data is static per
   coordinate+month) before any real traffic.
-- **NFR7 (uptime)** — no health-check endpoint, no deployment/hosting setup
-  (`gunicorn` is a dependency but unused so far).
+- **NFR7 (uptime)** — `GET /health` (DB + MQTT status), `Dockerfile`,
+  `docker-compose.prod.yml` (API + Postgres + Caddy HTTPS) and `docs/DEPLOY.md`
+  now exist, and the MQTT client retries its connection forever. The stack was
+  tested locally end to end, but not yet deployed to a real server or run
+  for a full week. `gunicorn` is still unused (single worker by design).
 - **FR4 (TNB bill parsing)** — validated on a single domestic bill only;
   needs more sample bills (other tariffs, older layouts) to harden.
 - **FR5 (feasibility report) assumptions need review** — JSON + Excel export

@@ -57,7 +57,12 @@ class DatabaseSessionManager:
             await session.close()
 
 
-sessionmanager = DatabaseSessionManager(str(app_config.postgres_url), {"echo": app_config.SQL_ECHO})
+sessionmanager = DatabaseSessionManager(
+    str(app_config.postgres_url),
+    # pre_ping drops dead connections (Postgres restart, idle timeout) instead of
+    # failing the next request; recycle keeps pooled connections from going stale.
+    {"echo": app_config.SQL_ECHO, "pool_pre_ping": True, "pool_recycle": 1800},
+)
 
 
 async def get_session():

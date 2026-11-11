@@ -76,6 +76,12 @@ class AppConfig(BaseConfig):
     MQTT_USE_TLS: bool = True
     MQTT_READINGS_TOPIC: str = "solarsense/+/readings"
     MQTT_STATUS_TOPIC: str = "solarsense/+/status"
+    # Seconds between MQTT pings. A silent network drop (no TCP reset, e.g. Wi-Fi
+    # lost) is only noticed after ~1.5x this, so keep it short for unattended runs.
+    MQTT_KEEPALIVE: int = Field(default=30, ge=5)
+    # Backoff bounds (seconds) for paho's automatic reconnect.
+    MQTT_RECONNECT_MIN_DELAY: int = Field(default=1, ge=1)
+    MQTT_RECONNECT_MAX_DELAY: int = Field(default=60, ge=1)
     # Client ID prefix for the backend's own connection. A random suffix is
     # added per process so several workers don't kick each other off the broker,
     # and so it can never equal a device ID ("solarsense-<12 hex>").
