@@ -20,6 +20,7 @@ import json
 import socket
 import threading
 import time
+import uuid
 from collections.abc import AsyncGenerator, Generator
 
 import paho.mqtt.client as mqtt
@@ -27,6 +28,7 @@ import pytest
 from app.core.config.app_config import app_config
 from app.modules.readings.mqtt import MQTTSubscriber
 from app.modules.readings.schemas import ReadingPayload
+from sqlalchemy.exc import OperationalError
 from testcontainers.core.container import DockerContainer
 from testcontainers.core.wait_strategies import LogMessageWaitStrategy
 
@@ -245,14 +247,116 @@ async def test_handler_exception_does_not_kill_network_thread(
     subscriber.connect()
     await _wait_for_ingest(subscriber, publisher, "dev-before", timeout=15)
 
-    original = subscriber._dispatch
+    original = subscriber._parse
 
-    def boom(msg: mqtt.MQTTMessage) -> None:
+    def boom(msg: mqtt.MQTTMessage):
         if "dev-boom" in msg.topic:
             raise RuntimeError("bug in handler")
-        original(msg)
+        return original(msg)
 
-    monkeypatch.setattr(subscriber, "_dispatch", boom)
+    monkeypatch.setattr(subscriber, "_parse", boom)
     publisher.publish("solarsense/dev-boom/readings", json.dumps(READING)).wait_for_publish()
 
     await _wait_for_ingest(subscriber, publisher, "dev-after", timeout=10)
+
+
+# --- Backend offline: the broker must keep readings for it (persistent session) ---
+
+
+@pytest.fixture
+def persistent_session(mqtt_config: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(app_config, "MQTT_SESSION_EXPIRY_S", 300)
+    # Fixed client ID per test (that's what lets the broker find the session),
+    # unique across tests so they don't inherit each other's queues.
+    monkeypatch.setattr(app_config, "MQTT_CLIENT_ID_PREFIX", f"test-{uuid.uuid4().hex[:8]}")
+
+
+async def _collect(sub: RecordingSubscriber, expected: set[str], timeout: float) -> set[str]:
+    got: set[str] = set()
+    deadline = time.monotonic() + timeout
+    while not expected <= got and time.monotonic() < deadline:
+        try:
+            got.add(await asyncio.wait_for(sub.received.get(), timeout=0.5))
+        except TimeoutError:
+            continue
+    return got
+
+
+async def test_readings_published_while_backend_down_are_delivered_on_restart(
+    persistent_session: None, publisher: mqtt.Client
+) -> None:
+    loop = asyncio.get_running_loop()
+    first = RecordingSubscriber(loop)
+    first.connect()
+    await _wait_for_ingest(first, publisher, "dev-warmup", timeout=15)
+    first.disconnect()  # backend stopped (crash, redeploy, PC asleep)
+
+    offline = {f"dev-offline-{i}" for i in range(20)}
+    for device_id in sorted(offline):
+        msg = {**READING, "ts": 1794226000 + int(device_id.rsplit("-", 1)[1])}
+        publisher.publish(f"solarsense/{device_id}/readings", json.dumps(msg), qos=1)
+    publisher.publish("solarsense/dev-last/readings", json.dumps(READING), qos=1).wait_for_publish()
+
+    second = RecordingSubscriber(loop)  # backend back up, same client ID
+    second.connect()
+    try:
+        got = await _collect(second, offline, timeout=15)
+    finally:
+        second.disconnect()
+
+    assert offline <= got, f"lost while backend was down: {sorted(offline - got)}"
+
+
+async def test_message_not_yet_saved_is_redelivered_after_restart(
+    persistent_session: None, publisher: mqtt.Client
+) -> None:
+    """Acks are sent only after the save, so a crash mid-save loses nothing."""
+    loop = asyncio.get_running_loop()
+    started = asyncio.Event()
+
+    class StuckSubscriber(RecordingSubscriber):
+        async def _handle_reading(self, device_id: str, payload: ReadingPayload) -> None:
+            started.set()
+            await asyncio.Event().wait()  # the save never finishes
+
+    stuck = StuckSubscriber(loop)
+    stuck.connect()
+    deadline = time.monotonic() + 15
+    while not stuck.is_connected() and time.monotonic() < deadline:
+        await asyncio.sleep(0.2)
+    await asyncio.sleep(0.5)  # let the subscription land
+    publisher.publish("solarsense/dev-stuck/readings", json.dumps(READING), qos=1)
+    await asyncio.wait_for(started.wait(), timeout=10)
+    stuck.disconnect()  # dies mid-save, before acking
+
+    second = RecordingSubscriber(loop)
+    second.connect()
+    try:
+        got = await _collect(second, {"dev-stuck"}, timeout=15)
+    finally:
+        second.disconnect()
+
+    assert "dev-stuck" in got
+
+
+async def test_transient_db_error_is_retried(
+    subscriber: RecordingSubscriber, publisher: mqtt.Client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    failures = 2
+    original = subscriber._handle_reading
+
+    async def flaky(device_id: str, payload: ReadingPayload) -> None:
+        nonlocal failures
+        if device_id == "dev-flaky" and failures:
+            failures -= 1
+            raise OperationalError("SELECT 1", {}, ConnectionRefusedError("db down"))
+        await original(device_id, payload)
+
+    monkeypatch.setattr(subscriber, "_handle_reading", flaky)
+    subscriber.connect()
+    await _wait_for_ingest(subscriber, publisher, "dev-before", timeout=15)
+
+    publisher.publish("solarsense/dev-flaky/readings", json.dumps(READING), qos=1)
+
+    assert "dev-flaky" in await _collect(subscriber, {"dev-flaky"}, timeout=10)
+    assert failures == 0

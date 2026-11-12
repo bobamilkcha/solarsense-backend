@@ -11,6 +11,7 @@ from app.modules.readings.exceptions import (
 )
 from app.modules.readings.schemas import ReadingPayload
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -67,28 +68,33 @@ class ReadingsService:
         result = await self.db.scalars(stmt.order_by(SensorReading.device_timestamp))
         return site, result.all()
 
-    async def record_reading(self, device_id: str, payload: ReadingPayload) -> SensorReading:
+    async def record_reading(self, device_id: str, payload: ReadingPayload) -> SensorReading | None:
+        """Store a reading. Returns None if this site already has a reading at that
+        device timestamp (an MQTT redelivery), leaving the existing row untouched."""
         site = await self.db.scalar(select(Site).where(Site.device_id == device_id))
 
         if site is None:
             raise UnknownDeviceError(device_id)
 
-        reading = SensorReading(
-            site_id=site.id,
-            cell_voltage=payload.cell_voltage,
-            cell_current=payload.cell_voltage / app_config.SHUNT_OHMS,
-            ambient_temp=payload.ambient_temp,
-            humidity=payload.humidity,
-            roll=payload.roll,
-            pitch=payload.pitch,
-            heading=payload.heading,
-            rssi=payload.rssi,
-            device_timestamp=payload.timestamp or datetime.now(UTC),
+        stmt = (
+            insert(SensorReading)
+            .values(
+                site_id=site.id,
+                cell_voltage=payload.cell_voltage,
+                cell_current=payload.cell_voltage / app_config.SHUNT_OHMS,
+                ambient_temp=payload.ambient_temp,
+                humidity=payload.humidity,
+                roll=payload.roll,
+                pitch=payload.pitch,
+                heading=payload.heading,
+                rssi=payload.rssi,
+                device_timestamp=payload.timestamp or datetime.now(UTC),
+            )
+            .on_conflict_do_nothing(constraint="uq_sensor_readings_site_ts")
+            .returning(SensorReading)
         )
-
-        self.db.add(reading)
+        reading = await self.db.scalar(stmt)
         await self.db.commit()
-        await self.db.refresh(reading)
 
         return reading
 

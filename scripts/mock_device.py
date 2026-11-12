@@ -111,7 +111,8 @@ class MockDevice:
         try:
             while not self._stop.is_set():
                 body = self._reading()
-                self.client.publish(self._topic("readings"), json.dumps(body), qos=0)
+                # QoS 1 like the firmware: the broker queues it while the backend is down.
+                self.client.publish(self._topic("readings"), json.dumps(body), qos=1)
                 print(f"reading -> v_mv={body['v_mv']} (every {self.interval_s}s)")
                 self._wake.wait(self.interval_s)
                 self._wake.clear()

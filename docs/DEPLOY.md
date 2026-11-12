@@ -31,8 +31,10 @@ VPS route and is not needed for this mode.
      The containers use `restart: unless-stopped`, so they return after a reboot
      once Docker is up (you must be signed in to Windows).
    - Pause Windows Update restarts for the week (Settings > Windows Update > Pause).
-   - Stay on a stable network. Readings are lost whenever the PC is asleep, offline
-     or restarting: the device sends at QoS 0 and the broker does not keep them.
+   - Stay on a stable network. While the PC is asleep, offline or restarting,
+     EMQX holds up to 1000 readings for the backend and delivers them when it
+     comes back (see "Readings while the backend is down" below). Anything beyond
+     that is lost, so don't leave it down for long.
 7. **Monitor + backup:** an UptimeRobot keyword monitor on
    `https://<ngrok-domain>/api/health` for `"mqtt":true` (free), and
    `mise run local-backup` whenever you like (keeps 7 dumps in `backups/`).
@@ -125,7 +127,8 @@ restarting the backend. The automated version is
    then `mqtt_subscribed`.
 6. **Pass:** the dashboard's "last reading" updates again within one publish
    interval after `mqtt_subscribed`, and you didn't restart anything.
-   Readings published while the network was down are lost (QoS 0, see below).
+   You should also see the readings published while it was down arrive, with
+   their original times (once the device firmware publishes at QoS 1).
 
 If you see `mqtt_ingest_failed` or `mqtt_message_handler_failed`, messages are
 arriving but failing to save: the `error` field says why.
@@ -134,9 +137,21 @@ arriving but failing to save: the `error` field says why.
 
 - **One worker only.** Every worker runs its own MQTT subscriber, so several
   workers would store each reading several times. Don't add `--workers`.
-- **Readings sent while the API is down are lost.** The device publishes at
-  QoS 0 and the backend uses a clean session, so a restart loses a few seconds
-  to minutes of data. Avoid redeploying mid-measurement.
+- **Readings while the backend is down.** In production the backend keeps a
+  persistent MQTT session (client ID `backend-solarsense-production`, 7-day
+  expiry), so EMQX queues QoS 1 readings while it is down and delivers them on
+  restart; duplicates are ignored. Limits:
+  - EMQX Serverless queues at most **1000 messages** per session. At a 60 s
+    publish interval that is about 16 hours of downtime; at 10 s, under 3 hours.
+    Older messages are dropped first.
+  - The device firmware must publish readings at **QoS 1** (QoS 0 messages may
+    not be queued).
+  - Readings with no device timestamp (`ts: null`, clock not synced yet) get the
+    time the backend *received* them, which is wrong for queued ones. Logged
+    as `mqtt_reading_without_ts`.
+  - **Only one backend per environment.** Two instances with the same client ID
+    (e.g. the PC and a VPS, both `ENVIRONMENT=production`) would keep kicking
+    each other off the broker.
 - **Uploaded bill PDFs** live in the `objects` Docker volume, and the database
   in `pgdata`. `docker compose down -v` deletes both: never use `-v` here.
 - **Certificate errors on first start** usually mean DNS has not propagated or

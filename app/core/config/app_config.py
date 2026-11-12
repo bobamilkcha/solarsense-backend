@@ -1,3 +1,4 @@
+import secrets
 from typing import Literal
 from urllib.parse import quote_plus
 
@@ -79,6 +80,11 @@ class AppConfig(BaseConfig):
     # Seconds between MQTT pings. A silent network drop (no TCP reset, e.g. Wi-Fi
     # lost) is only noticed after ~1.5x this, so keep it short for unattended runs.
     MQTT_KEEPALIVE: int = Field(default=30, ge=5)
+    # How long (seconds) the broker keeps the backend's session, and queues QoS 1
+    # readings for it, while the backend is offline. 0 = clean session, nothing
+    # queued. Unset = 7 days in production, 0 elsewhere (so a dev server that's
+    # off doesn't build up a queue). See `mqtt_session_expiry_s`.
+    MQTT_SESSION_EXPIRY_S: int | None = Field(default=None, ge=0)
     # Backoff bounds (seconds) for paho's automatic reconnect.
     MQTT_RECONNECT_MIN_DELAY: int = Field(default=1, ge=1)
     MQTT_RECONNECT_MAX_DELAY: int = Field(default=60, ge=1)
@@ -86,6 +92,22 @@ class AppConfig(BaseConfig):
     # added per process so several workers don't kick each other off the broker,
     # and so it can never equal a device ID ("solarsense-<12 hex>").
     MQTT_CLIENT_ID_PREFIX: str = "backend-solarsense"
+
+    @property
+    def mqtt_session_expiry_s(self) -> int:
+        if self.MQTT_SESSION_EXPIRY_S is not None:
+            return self.MQTT_SESSION_EXPIRY_S
+        return 7 * 24 * 3600 if self.ENVIRONMENT == "production" else 0
+
+    @property
+    def mqtt_client_id(self) -> str:
+        """Stable ID for a persistent session (the broker finds its queue by it),
+        random otherwise. Per environment, so dev and prod never share a session.
+        Never a device ID ("solarsense-<12 hex>"), or the broker would kick the device.
+        """
+        if self.mqtt_session_expiry_s > 0:
+            return f"{self.MQTT_CLIENT_ID_PREFIX}-{self.ENVIRONMENT}"
+        return f"{self.MQTT_CLIENT_ID_PREFIX}-{secrets.token_hex(4)}"
 
     OBJECT_STORAGE_DIR: str = "./data/object_storage"
 

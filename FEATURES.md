@@ -89,6 +89,18 @@ _Last updated: 2026-10-22_
   (real Mosquitto behind a proxy that simulates a connection reset, a silent
   network drop, a broker that's unreachable at startup, and a crashing handler).
   Manual field check: `docs/DEPLOY.md`, "Network-drop check".
+- **No data loss while the backend is down**: MQTT 5 persistent session
+  (stable client ID `backend-solarsense-<ENVIRONMENT>`, `clean_start=False`,
+  session expiry `MQTT_SESSION_EXPIRY_S`, 7 days by default in production and 0
+  elsewhere), readings subscribed at QoS 1, and manual acks: a message is acked
+  only after it is saved, so a crash mid-save means the broker redelivers it.
+  Messages are saved by one sequential worker (a backlog can't exhaust the DB
+  pool); DB connection errors are retried with backoff (`mqtt_ingest_retry`),
+  other errors are logged and skipped. Inserts are idempotent: unique
+  `(site_id, device_timestamp)` with `ON CONFLICT DO NOTHING`. Limits: EMQX
+  Serverless queues at most 1000 messages; firmware must publish at QoS 1; a
+  null `ts` falls back to receive time. Tested in `test_mqtt_reconnect.py`
+  (readings published while the backend is down, crash before ack, DB retry).
 - **REST read API** (requires auth, company-scoped — `super_admin` sees every
   company's data, everyone else only their own):
   - `GET /sites` — list sites visible to the caller

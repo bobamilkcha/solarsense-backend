@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from app.models.base import Base
-from sqlalchemy import DateTime, ForeignKey, Numeric, SmallInteger
+from sqlalchemy import DateTime, ForeignKey, Numeric, SmallInteger, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -12,6 +12,11 @@ class SensorReading(Base):
     """One device reading. Sensor fields are null when that sensor failed on the device."""
 
     __tablename__: str = "sensor_readings"
+    # One reading per site per device timestamp. MQTT QoS 1 is "at least once",
+    # so a redelivered message must not create a second row.
+    __table_args__ = (
+        UniqueConstraint("site_id", "device_timestamp", name="uq_sensor_readings_site_ts"),
+    )
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     site_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("sites.id", ondelete="CASCADE"), nullable=False

@@ -1,23 +1,29 @@
 """MQTT client: ingests device readings and status, and publishes device config.
 
 Topics (device ID is always taken from the topic path):
-  solarsense/<id>/readings  device -> backend, QoS 0
+  solarsense/<id>/readings  device -> backend, QoS 1 (firmware must publish at QoS 1)
   solarsense/<id>/status    device -> backend, QoS 1, retained (Last Will = offline)
   solarsense/<id>/config    backend -> device, QoS 1, retained
 
-paho-mqtt runs its network loop on its own background thread and delivers
-`on_message` callbacks synchronously on that thread. The DB/session layer is
-async, so each message is handed off to the app's event loop via
-`run_coroutine_threadsafe` rather than awaited directly.
+No reading is lost while the backend is down (up to the broker's queue limit):
+- Persistent session (MQTT 5, `clean_start=False`, session expiry, stable client
+  ID): the broker queues QoS 1 messages for the backend while it is offline and
+  delivers them when it reconnects.
+- Manual acks: a message is acknowledged only after it is saved. If the backend
+  dies first, the broker redelivers it on the next connection.
+- Redelivery means duplicates, so the reading insert is idempotent (unique
+  site + device timestamp).
+
+paho runs its network loop on its own thread and calls `on_message` there. The
+DB layer is async, so messages are queued onto the app's event loop and one
+worker saves them in order. One worker, not a task per message: a backlog of
+hundreds of queued messages arriving at once would otherwise exhaust the DB pool.
 """
 
 import asyncio
 import json
-import secrets
-from collections.abc import Coroutine
-from concurrent.futures import Future
-from functools import partial
-from typing import Any
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 
 import paho.mqtt.client as mqtt
 from app.core.config.app_config import app_config
@@ -28,7 +34,24 @@ from app.modules.devices.service import DevicesService
 from app.modules.readings.exceptions import UnknownDeviceError
 from app.modules.readings.schemas import ReadingPayload
 from app.modules.readings.service import ReadingsService
+from paho.mqtt.packettypes import PacketTypes
+from paho.mqtt.properties import Properties
 from pydantic import ValidationError
+from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError
+from sqlalchemy.exc import TimeoutError as PoolTimeoutError
+
+# Errors that mean "the database is unreachable right now", worth retrying. While
+# retrying, the message stays unacked so the broker keeps it.
+_TRANSIENT_ERRORS = (OSError, TimeoutError, OperationalError, InterfaceError, PoolTimeoutError)
+_RETRY_MAX_DELAY_S = 30
+
+
+@dataclass(frozen=True)
+class _Inbound:
+    topic: str
+    mid: int
+    qos: int
+    handle: Callable[[], Awaitable[None]]
 
 
 class MQTTSubscriber:
@@ -39,8 +62,7 @@ class MQTTSubscriber:
       thread, which retries forever with backoff, so a broker that is unreachable
       at startup doesn't leave ingestion dead until the next restart.
     - The same thread reconnects automatically after any drop.
-    - Subscriptions are (re)made in `on_connect`, because a clean-session
-      reconnect starts with no subscriptions on the broker side.
+    - Subscriptions are (re)made in `on_connect`, in case the session was lost.
     - No exception may escape a callback: paho re-raises callback exceptions by
       default, which kills its network thread silently and permanently.
     """
@@ -49,11 +71,15 @@ class MQTTSubscriber:
         self._loop = loop
         self._stopping = False
         self._connected_before = False
-        # Never a device ID ("solarsense-<12 hex>"): the broker would disconnect the
-        # real device. Random suffix so several workers don't kick each other off.
-        self._client_id = f"{app_config.MQTT_CLIENT_ID_PREFIX}-{secrets.token_hex(4)}"
+        self._queue: asyncio.Queue[_Inbound] = asyncio.Queue()
+        self._worker: asyncio.Task[None] | None = None
+        self._session_expiry_s = app_config.mqtt_session_expiry_s
+        self._client_id = app_config.mqtt_client_id
         self._client = mqtt.Client(
-            callback_api_version=mqtt.CallbackAPIVersion.VERSION2, client_id=self._client_id
+            callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
+            client_id=self._client_id,
+            protocol=mqtt.MQTTv5,
+            manual_ack=True,
         )
         # Belt and braces with the try/except in each callback: never let a bug in a
         # callback take down the network thread.
@@ -72,16 +98,22 @@ class MQTTSubscriber:
         self._client.on_message = self._on_message
 
     def connect(self) -> None:
-        """Start the network loop; it connects in the background and keeps retrying."""
+        """Start the save worker and the network loop, which connects in the
+        background and keeps retrying. Call from the app's event loop."""
+        self._worker = self._loop.create_task(self._consume())
         self._client.reconnect_delay_set(
             min_delay=app_config.MQTT_RECONNECT_MIN_DELAY,
             max_delay=app_config.MQTT_RECONNECT_MAX_DELAY,
         )
+        props = Properties(PacketTypes.CONNECT)
+        props.SessionExpiryInterval = self._session_expiry_s
         try:
             self._client.connect_async(
                 app_config.MQTT_BROKER_HOST,
                 app_config.MQTT_BROKER_PORT,
                 keepalive=app_config.MQTT_KEEPALIVE,
+                clean_start=self._session_expiry_s == 0,
+                properties=props,
             )
         except (OSError, ValueError) as exc:
             # Only bad arguments get here; connect_async does no network I/O.
@@ -94,11 +126,16 @@ class MQTTSubscriber:
             port=app_config.MQTT_BROKER_PORT,
             client_id=self._client_id,
             keepalive=app_config.MQTT_KEEPALIVE,
+            session_expiry_s=self._session_expiry_s,
         )
         self._client.loop_start()
 
     def disconnect(self) -> None:
+        """Stop without acking anything still queued: the broker keeps those
+        messages (persistent session) and redelivers them on the next start."""
         self._stopping = True
+        if self._worker is not None:
+            self._worker.cancel()
         self._client.disconnect()
         self._client.loop_stop()
 
@@ -116,6 +153,8 @@ class MQTTSubscriber:
         )
         return info.rc == mqtt.MQTT_ERR_SUCCESS
 
+    # --- paho callbacks (network thread) ---
+
     def _on_connect(self, client: mqtt.Client, userdata, flags, reason_code, properties) -> None:
         if reason_code.is_failure:
             # e.g. bad credentials; paho keeps retrying with backoff.
@@ -124,11 +163,14 @@ class MQTTSubscriber:
 
         event = "mqtt_reconnected" if self._connected_before else "mqtt_connected"
         self._connected_before = True
+        # session_present=True after downtime means the broker kept our queue and
+        # is about to deliver what was published meanwhile.
         logger.info(event, reason=str(reason_code), session_present=flags.session_present)
 
-        # Subscribing here (not once at startup) restores both after a reconnect.
+        # Re-subscribing is harmless when the session survived, and essential when
+        # it didn't (first start, expired session, or a clean session in dev).
         result, _mid = client.subscribe(
-            [(app_config.MQTT_READINGS_TOPIC, 0), (app_config.MQTT_STATUS_TOPIC, 1)]
+            [(app_config.MQTT_READINGS_TOPIC, 1), (app_config.MQTT_STATUS_TOPIC, 1)]
         )
         if result != mqtt.MQTT_ERR_SUCCESS:
             logger.error("mqtt_subscribe_failed", error=mqtt.error_string(result))
@@ -141,6 +183,7 @@ class MQTTSubscriber:
             logger.info(
                 "mqtt_subscribed",
                 topics=[app_config.MQTT_READINGS_TOPIC, app_config.MQTT_STATUS_TOPIC],
+                granted=[str(rc) for rc in reason_code_list],
             )
 
     def _on_connect_fail(self, client, userdata) -> None:
@@ -160,56 +203,104 @@ class MQTTSubscriber:
 
     def _on_message(self, client: mqtt.Client, userdata, msg: mqtt.MQTTMessage) -> None:
         try:
-            self._dispatch(msg)
+            item = self._parse(msg)
         except Exception:
             logger.exception("mqtt_message_handler_failed", topic=msg.topic)
+            item = None
 
-    def _dispatch(self, msg: mqtt.MQTTMessage) -> None:
+        if item is None:
+            # Malformed or unexpected: retrying would never help, so ack and drop.
+            client.ack(msg.mid, msg.qos)
+            return
+
+        try:
+            self._loop.call_soon_threadsafe(self._queue.put_nowait, item)
+        except RuntimeError:
+            # Event loop closed (shutting down): leave it unacked for redelivery.
+            logger.warning("mqtt_message_not_queued", topic=msg.topic)
+
+    def _parse(self, msg: mqtt.MQTTMessage) -> _Inbound | None:
         # Topic shape: solarsense/{device_id}/{readings|status}
         parts = msg.topic.split("/")
         if len(parts) != 3 or parts[0] != "solarsense" or not parts[1]:
             logger.warning("mqtt_unexpected_topic", topic=msg.topic)
-            return
+            return None
 
         device_id = parts[1]
 
         if parts[2] == "status":
-            self._on_status(device_id, msg)
-            return
+            return self._parse_status(device_id, msg)
         if parts[2] != "readings":
             logger.warning("mqtt_unexpected_topic", topic=msg.topic)
-            return
+            return None
 
         try:
-            raw = json.loads(msg.payload)
-            payload = ReadingPayload.model_validate(raw)
+            payload = ReadingPayload.model_validate(json.loads(msg.payload))
         except (json.JSONDecodeError, ValidationError) as exc:
             logger.warning("mqtt_invalid_payload", topic=msg.topic, error=str(exc))
-            return
+            return None
 
-        self._submit(self._handle_reading(device_id, payload), msg.topic)
+        if payload.timestamp is None:
+            # Stored with the receive time. Wrong if the broker held it while the
+            # backend was down, so firmware should only publish once NTP synced.
+            logger.warning("mqtt_reading_without_ts", device_id=device_id)
 
-    def _submit(self, coro: Coroutine[Any, Any, None], topic: str) -> None:
-        """Run `coro` on the app's event loop and log it if it fails.
+        return _Inbound(
+            msg.topic, msg.mid, msg.qos, lambda: self._handle_reading(device_id, payload)
+        )
 
-        Without the done-callback a DB error during ingestion would vanish inside
-        the Future and ingestion would look silently stopped.
-        """
-        future = asyncio.run_coroutine_threadsafe(coro, self._loop)
-        future.add_done_callback(partial(_log_failure, topic=topic))
-
-    def _on_status(self, device_id: str, msg: mqtt.MQTTMessage) -> None:
+    def _parse_status(self, device_id: str, msg: mqtt.MQTTMessage) -> _Inbound | None:
         try:
             status = StatusPayload.model_validate(json.loads(msg.payload))
         except (json.JSONDecodeError, ValidationError) as exc:
             logger.warning("mqtt_invalid_status", topic=msg.topic, error=str(exc))
-            return
+            return None
 
         if status.device is not None and status.device != device_id:
             logger.warning("mqtt_status_device_mismatch", topic=msg.topic, device=status.device)
-            return
+            return None
 
-        self._submit(self._handle_status(device_id, status, bool(msg.retain)), msg.topic)
+        retained = bool(msg.retain)
+        return _Inbound(
+            msg.topic, msg.mid, msg.qos, lambda: self._handle_status(device_id, status, retained)
+        )
+
+    # --- save worker (event loop) ---
+
+    async def _consume(self) -> None:
+        while True:
+            item = await self._queue.get()
+            if await self._process(item):
+                # Ack only once saved. If the connection dropped meanwhile the ack
+                # fails, the broker redelivers, and the duplicate insert is a no-op.
+                self._client.ack(item.mid, item.qos)
+
+    async def _process(self, item: _Inbound) -> bool:
+        """Save one message. Returns False only when shutting down mid-retry."""
+        delay = 1
+        while True:
+            try:
+                await item.handle()
+                return True
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                if not _is_transient(exc):
+                    # A bug or bad data: retrying won't help, and holding it would
+                    # block every message behind it. Log, ack and move on.
+                    logger.exception(
+                        "mqtt_ingest_failed", topic=item.topic, error_type=type(exc).__name__
+                    )
+                    return True
+                await logger.a_warning(
+                    "mqtt_ingest_retry",
+                    topic=item.topic,
+                    error=str(exc),
+                    error_type=type(exc).__name__,
+                    retry_in_s=delay,
+                )
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, _RETRY_MAX_DELAY_S)
 
     async def _handle_status(self, device_id: str, status: StatusPayload, retained: bool) -> None:
         async with sessionmanager.session() as db:
@@ -226,11 +317,7 @@ class MQTTSubscriber:
                 await logger.a_info("mqtt_unpaired_device", device_id=device_id)
 
 
-def _log_failure(future: Future[None], *, topic: str) -> None:
-    if future.cancelled():
-        return
-    exc = future.exception()
-    if exc is not None:
-        logger.error(
-            "mqtt_ingest_failed", topic=topic, error=str(exc), error_type=type(exc).__name__
-        )
+def _is_transient(exc: BaseException) -> bool:
+    if isinstance(exc, _TRANSIENT_ERRORS):
+        return True
+    return isinstance(exc, DBAPIError) and exc.connection_invalidated

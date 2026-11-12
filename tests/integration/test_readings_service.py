@@ -67,6 +67,7 @@ async def test_record_reading_inserts_row(db: AsyncSession) -> None:
     svc = ReadingsService(db)
     reading = await svc.record_reading(str(site.device_id), _payload())
 
+    assert reading is not None
     assert reading.id is not None
     assert reading.site_id == site.id
     assert reading.cell_voltage == Decimal("3.42")
@@ -78,6 +79,7 @@ async def test_record_reading_derives_current_from_voltage(db: AsyncSession) -> 
     svc = ReadingsService(db)
     reading = await svc.record_reading(str(site.device_id), _payload(cell_voltage=5.0))
 
+    assert reading is not None
     assert reading.cell_current == Decimal("0.5")
 
 
@@ -101,6 +103,7 @@ async def test_record_reading_from_device_payload(db: AsyncSession) -> None:
 
     reading = await ReadingsService(db).record_reading(str(site.device_id), payload)
 
+    assert reading is not None
     assert reading.cell_voltage == Decimal("1.84")
     assert reading.cell_current == Decimal("0.184")
     assert reading.roll == Decimal("5.9")
@@ -153,6 +156,7 @@ async def test_list_readings_orders_newest_first(db: AsyncSession) -> None:
 
     readings = await svc.list_readings(site.id, company_id=None)
 
+    assert older is not None and newer is not None
     assert [r.id for r in readings] == [newer.id, older.id]
 
 
@@ -177,6 +181,7 @@ async def test_record_reading_without_timestamp_uses_receive_time(db: AsyncSessi
         str(site.device_id), _payload(timestamp=None)
     )
 
+    assert reading is not None
     assert abs((reading.device_timestamp - datetime.now(UTC)).total_seconds()) < 60
 
 
@@ -188,6 +193,25 @@ async def test_record_reading_with_failed_sensors_stores_nulls(db: AsyncSession)
         _payload(ambient_temp=None, humidity=None, roll=None, pitch=None, heading=None),
     )
 
+    assert reading is not None
     assert reading.ambient_temp is None
     assert reading.roll is None
     assert reading.cell_voltage == Decimal("3.42")
+
+
+async def test_record_reading_duplicate_is_ignored(db: AsyncSession) -> None:
+    """MQTT QoS 1 can deliver the same reading twice; only one row is stored."""
+    site = await _make_site(db)
+    svc = ReadingsService(db)
+    ts = datetime(2026, 3, 1, 12, 0, tzinfo=UTC)
+
+    first = await svc.record_reading(str(site.device_id), _payload(timestamp=ts))
+    second = await svc.record_reading(
+        str(site.device_id), _payload(timestamp=ts, cell_voltage=9.99)
+    )
+
+    assert first is not None
+    assert second is None
+    readings = await svc.list_readings(site.id, company_id=None)
+    assert [r.id for r in readings] == [first.id]
+    assert readings[0].cell_voltage == Decimal("3.42")  # original row untouched
