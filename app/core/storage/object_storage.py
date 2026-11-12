@@ -5,13 +5,14 @@ freely pullable from Docker Hub or Quay.io (confirmed as of 2026-10-21 — both
 deny every tag, including `latest`), so there's no way to run it locally
 right now. Buckets become subdirectories under `app_config.OBJECT_STORAGE_DIR`.
 
-The function signatures (`ensure_bucket`/`upload_bytes`/`get_bytes`) are kept
+The function signatures (`ensure_bucket`/`upload_bytes`/`get_bytes`/`delete_prefix`) are kept
 S3-shaped on purpose — swapping back to a real object store later (MinIO,
-S3, etc.) only needs a new implementation of these three functions, not a
+S3, etc.) only needs a new implementation of these functions, not a
 rewrite of the callers.
 """
 
 import asyncio
+import shutil
 from pathlib import Path
 
 from app.core.config.app_config import app_config
@@ -45,3 +46,15 @@ def _get_bytes_sync(bucket: str, object_name: str) -> bytes:
 
 async def get_bytes(bucket: str, object_name: str) -> bytes:
     return await asyncio.to_thread(_get_bytes_sync, bucket, object_name)
+
+
+def _delete_prefix_sync(bucket: str, prefix: str) -> None:
+    # Prefixes are "folder" names (e.g. a site id), never paths that leave the bucket.
+    if not prefix or "/" in prefix or prefix in (".", ".."):
+        raise ValueError(f"Invalid prefix: {prefix!r}")
+    shutil.rmtree(_bucket_dir(bucket) / prefix, ignore_errors=True)
+
+
+async def delete_prefix(bucket: str, prefix: str) -> None:
+    """Delete every object under `prefix/`. Missing prefixes are fine."""
+    await asyncio.to_thread(_delete_prefix_sync, bucket, prefix)

@@ -20,6 +20,7 @@ from app.modules.devices.router import router as devices_router
 from app.modules.devices.router import sites_router as devices_sites_router
 from app.modules.projects.exceptions import ProjectsError
 from app.modules.projects.router import router as projects_router
+from app.modules.projects.router import sites_router as projects_sites_router
 from app.modules.readings.exceptions import ReadingsError
 from app.modules.readings.mqtt import MQTTSubscriber
 from app.modules.readings.router import router as readings_router
@@ -138,6 +139,7 @@ if app_config.BACKEND_CORS_ORIGINS:
 
 app.include_router(auth_router)
 app.include_router(projects_router)
+app.include_router(projects_sites_router)
 app.include_router(readings_router)
 app.include_router(devices_router)
 app.include_router(devices_sites_router)

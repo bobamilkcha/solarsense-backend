@@ -67,6 +67,7 @@ company's data). These endpoints need `company_admin` or higher (others get
 403):
 
 - `POST /projects`, `POST /projects/{id}/sites`
+- `PATCH`/`DELETE /projects/{id}`, `PATCH`/`DELETE /sites/{id}`
 - `POST /users/invitations`, `GET /users/invitations`, `DELETE /users/invitations/{id}`
 - `PATCH /users/{id}`
 
@@ -123,6 +124,20 @@ values as approximate.
   creating the site without one and pairing it as below.
 - `GET /sites`: all sites the user can see. Each has `project_id`; group by it
   client-side. `device_id` is `null` when no device is paired.
+- `PATCH /projects/{id}` (admin): send only the fields to change, from `name`
+  and `description`. `"description": null` clears it; `name` can't be null or
+  empty (422). Returns the updated project.
+- `PATCH /sites/{id}` (admin): send only the fields to change, from `name`,
+  `location_lat` and `location_lng` (none may be null). Returns the updated
+  site. The benchmark and feasibility report always use the current location,
+  so fixing a wrong location also changes results for past readings. To
+  change the device, use the pairing endpoints below, not this.
+- `DELETE /projects/{id}` and `DELETE /sites/{id}` (admin): 204. **Permanent,
+  no undo**: deleting a site also deletes its readings, bills (with the
+  PDFs) and visits; deleting a project does that for every site in it. The
+  site's device becomes unpaired and can be paired elsewhere. Ask the user to
+  confirm (e.g. type the name) before calling.
+- Another company's project or site gives 404 on all of these.
 
 ### Pairing a device (admin)
 
@@ -304,7 +319,7 @@ invalidates the old link. An invalid token returns 400.
 
 1. Login / register (register creates a new company plus its admin)
 2. Accept invite (`/accept-invite?token=`)
-3. Projects → sites list (admins can create)
+3. Projects → sites list (admins can create, edit and delete)
 4. Site dashboard: live irradiance chart (poll), latest temperature and
    humidity, benchmark ratio, bills list and upload, visits list
 5. Visit checklist (mobile-first)
@@ -315,7 +330,7 @@ invalidates the old link. An invalid token returns 400.
 ## Not available yet (don't build UI that depends on these)
 
 - No `GET` for a single project or site. Use the list endpoints and filter.
-- No editing or deleting projects, sites or bills.
+- No editing or deleting bills.
 - No readings aggregation (hourly or daily averages). Charts must use raw
   readings (max 1000 per request).
 - No pagination totals on the readings list.

@@ -70,6 +70,10 @@ run = "ENV_FILE=.env.prod docker compose --env-file .env.prod -f docker-compose.
 description = "Follow the local production stack's logs (e.g. mise run local-logs api)"
 run = "ENV_FILE=.env.prod docker compose --env-file .env.prod -f docker-compose.prod.yml -f docker-compose.local.yml logs -f --tail 100 $@"
 
+[tasks.local-evaluate-nfr]
+description = "Measure NFR3 latency + NFR6 accuracy on the local production data (e.g. mise run local-evaluate-nfr <device_id> --start 2026-11-09 --end 2026-11-13)"
+run = "ENV_FILE=.env.prod docker compose --env-file .env.prod -f docker-compose.prod.yml -f docker-compose.local.yml cp scripts/evaluate_nfr.py api:/tmp/evaluate_nfr.py && ENV_FILE=.env.prod docker compose --env-file .env.prod -f docker-compose.prod.yml -f docker-compose.local.yml exec -T -e PYTHONPATH=/app api /app/.venv/bin/python /tmp/evaluate_nfr.py $@"
+
 [tasks.local-backup]
 description = "Dump the local production database to backups/ (keeps 7)"
 run = "ENV_FILE=.env.prod COMPOSE_FILES='-f docker-compose.prod.yml -f docker-compose.local.yml' ./deploy/backup.sh"

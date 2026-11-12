@@ -54,6 +54,12 @@ _Last updated: 2026-10-22_
 - `POST /projects/{project_id}/sites` (company_admin+) — register a new device/site
   under a project; rejects duplicate `device_id` (409) and sites under another
   company's project (404, not 403 — avoids leaking project existence)
+- `PATCH /projects/{id}` / `PATCH /sites/{id}` (company_admin+) — partial
+  update of name/description and name/location; only the fields sent change
+- `DELETE /projects/{id}` / `DELETE /sites/{id}` (company_admin+) — permanent;
+  readings, bills and visits cascade in the DB, and the site's bill PDFs are
+  removed from object storage after the commit (a failure there is logged,
+  leaving orphaned files, not a failed request). The device becomes unpaired
 - Fully tested (RBAC allow/deny per role, 404/409 cases)
 
 ### Readings module (`app/modules/readings/`)
