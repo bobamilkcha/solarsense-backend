@@ -184,14 +184,22 @@ _Last updated: 2026-10-22_
   and net savings over 25 years (0.5%/yr degradation, flat tariffs)
 - **TNB domestic tariff calculator** (`tariff.py`) for the July 2025 tariff,
   checked line by line against a real bill: energy (incl. >1,500 kWh tier),
-  capacity, network, retail charge, AFA, 8% service tax above 600 kWh, KWTBB.
+  capacity, network, retail charge, AFA, 8% service tax above 600 kWh, KWTBB,
+  and the Energy Efficiency Incentive (EEI) rebate for usage <=1,000 kWh (one
+  band rate on every kWh, split by kWh across the untaxed/taxed columns;
+  KWTBB after the rebate), per TNB's "Guide to Electricity Tariff". Matches
+  that guide's worked 625 kWh bill and six real 354-431 kWh bills to the sen
+  (one after excluding a late-payment surcharge, which isn't tariff).
   Non-domestic bills fall back to a flat RM/kWh rate derived from the bills'
   `current_charges`
 - Shading factor = average of device/satellite ratio over complete days
   (capped at 1.0); with no complete days, satellite-only (factor 1.0)
 - Overridable query params with defaults: `system_kwp` (omit = sized to cover
   annual usage), `performance_ratio` 0.8, `self_consumption_ratio` 0.6,
-  `export_rate_rm_per_kwh` 0 (conservative), `cost_per_kwp_rm` 4000,
+  `export_rate_rm_per_kwh` (omit = Solar ATAP: domestic exports credited at
+  the 27.03 sen/kWh energy charge, capped at that month's grid import, per
+  TNB's tariff guide s7.2; a number = flat credit on every exported kWh;
+  non-domestic ATAP rate not modelled, so 0), `cost_per_kwp_rm` 4000,
   `panel_wp` 550, `afa_rate_rm_per_kwh` 0
 - 422 if the site has no bill with kWh; 502 if PVGIS is down
 - `GET /sites/{site_id}/feasibility/xlsx` (same query params) — Excel
@@ -288,9 +296,10 @@ _Last updated: 2026-10-22_
   needs more sample bills (other tariffs, older layouts) to harden.
 - **FR5 (feasibility report) assumptions need review** — JSON + Excel export
   done (PDF is the frontend's job). Assumption defaults (cost/kWp,
-  self-consumption 60%, zero export credit) are estimates; the Solar ATAP
-  export rate and the Energy Efficiency Incentive rebate (usage <=1,000 kWh)
-  aren't modelled, so savings are on the conservative side. Consumption is
+  self-consumption 60%) are estimates. Solar ATAP is modelled for domestic
+  sites, but how its credit interacts with EEI/KWTBB is assumed (charged on
+  grid import, credit subtracted after) and the MAQ cap is ignored.
+  Consumption is
   assumed flat across the year (average of uploaded bills).
 - **Site visit photos** — the checklist has no photo attachments yet (object
   storage exists and could hold them, as it does for bills). The default

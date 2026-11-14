@@ -12,11 +12,12 @@ from app.modules.reports.exceptions import IrradiationUnavailableError, NoBillDa
 from app.modules.reports.schemas import (
     AssumptionsParams,
     ConsumptionSummary,
+    ExportCreditSummary,
     FeasibilityReport,
     MonthBreakdown,
     ShadingSummary,
 )
-from app.modules.reports.tariff import domestic_bill
+from app.modules.reports.tariff import ENERGY_RATE, domestic_bill
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,6 +26,25 @@ AVG_MONTH_DAYS = 365.25 / 12
 
 def _is_domestic(tariff: str | None) -> bool:
     return tariff is not None and any(w in tariff.lower() for w in ("domestik", "domestic"))
+
+
+def _export_credit(
+    params: AssumptionsParams, consumption: ConsumptionSummary
+) -> ExportCreditSummary:
+    """Solar ATAP unless a flat rate is given. ATAP credits domestic exports at
+    the energy charge (27.03 sen/kWh), up to the month's grid import (TNB tariff
+    guide, s7.2). Its non-domestic rate (system marginal price) isn't modelled."""
+    if params.export_rate_rm_per_kwh is not None:
+        return ExportCreditSummary(
+            scheme="flat_rate",
+            rate_rm_per_kwh=params.export_rate_rm_per_kwh,
+            capped_at_grid_import=False,
+        )
+    if consumption.tariff_model == "domestic_2025":
+        return ExportCreditSummary(
+            scheme="solar_atap", rate_rm_per_kwh=ENERGY_RATE, capped_at_grid_import=True
+        )
+    return ExportCreditSummary(scheme="flat_rate", rate_rm_per_kwh=0.0, capped_at_grid_import=False)
 
 
 class ReportsService:
@@ -46,11 +66,13 @@ class ReportsService:
             raise IrradiationUnavailableError from exc
 
         shading = await self._shading(site_id, irradiation)
+        export_credit = _export_credit(params, consumption)
 
         a = fz.Assumptions(
             performance_ratio=params.performance_ratio,
             self_consumption_ratio=params.self_consumption_ratio,
-            export_rate=params.export_rate_rm_per_kwh,
+            export_rate=export_credit.rate_rm_per_kwh,
+            cap_export_to_import=export_credit.capped_at_grid_import,
             cost_per_kwp=params.cost_per_kwp_rm,
             panel_wp=params.panel_wp,
         )
@@ -75,6 +97,7 @@ class ReportsService:
             location_lng=float(site.location_lng),
             consumption=consumption,
             shading=shading,
+            export_credit=export_credit,
             system_kwp=result.system_kwp,
             panel_count=result.panel_count,
             system_cost_rm=result.system_cost_rm,

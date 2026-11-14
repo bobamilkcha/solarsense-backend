@@ -136,6 +136,12 @@ def _monthly(ws: Worksheet, r: FeasibilityReport) -> None:
         ws.column_dimensions[get_column_letter(col)].width = 19
 
 
+_EXPORT_SCHEMES = {
+    "solar_atap": "Solar ATAP (energy charge, up to grid import)",
+    "flat_rate": "Flat rate per exported kWh",
+}
+
+
 def _assumptions(ws: Worksheet, r: FeasibilityReport) -> None:
     a = r.assumptions
     ws["A1"] = "Input"
@@ -152,18 +158,19 @@ def _assumptions(ws: Worksheet, r: FeasibilityReport) -> None:
             ("Installed cost (RM per kWp)", a.cost_per_kwp_rm, RM0),
             ("Performance ratio", a.performance_ratio, PCT),
             ("Solar used on-site", a.self_consumption_ratio, PCT),
-            ("Export credit (RM/kWh)", a.export_rate_rm_per_kwh, "0.0000"),
+            ("Export credit scheme", _EXPORT_SCHEMES[r.export_credit.scheme], None),
+            ("Export credit (RM/kWh)", r.export_credit.rate_rm_per_kwh, "0.0000"),
             ("AFA fuel adjustment (RM/kWh)", a.afa_rate_rm_per_kwh, "0.0000"),
             ("Panel degradation per year", Assumptions().degradation_per_year, "0.0%"),
             ("Lifetime (years)", r.lifetime_years, None),
         ],
     )
-    ws["A12"] = (
+    ws["A13"] = (
         "Estimates for planning, not a quotation. Sunlight: PVGIS long-term monthly "
         "averages (horizontal surface). Usage assumed constant through the year; tariffs "
-        "held flat. Excludes TNB's Energy Efficiency Incentive rebate."
+        "held flat. Domestic bills include TNB's Energy Efficiency Incentive rebate."
     )
-    ws["A12"].font = MUTED
+    ws["A13"].font = MUTED
     ws.column_dimensions["A"].width = 34
     ws.column_dimensions["B"].width = 14
 

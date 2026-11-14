@@ -46,6 +46,25 @@ def test_export_credit_reduces_bill_but_not_below_zero() -> None:
     assert huge.bill_after_rm == 0.0
 
 
+def test_atap_credit_capped_at_grid_import() -> None:
+    # 1000 kWh/month usage; at 20 kWp, 2400 kWh produced in a 31-day month
+    consumption = 1000.0 * 31 / (365.25 / 12)
+    capped = fz.Assumptions(export_rate=0.3, cap_export_to_import=True)
+    m = _run(system_kwp=20.0, a=capped).months[0]
+
+    grid_import = consumption - m.self_consumed_kwh
+    assert m.exported_kwh > grid_import  # exports exceed what can be credited
+    expected = _flat_rate(grid_import) - grid_import * 0.3
+    assert m.bill_after_rm == pytest.approx(max(expected, 0.0))
+
+
+def test_atap_cap_has_no_effect_when_exports_below_import() -> None:
+    plain = _run(a=fz.Assumptions(export_rate=0.2)).months[0]
+    capped = _run(a=fz.Assumptions(export_rate=0.2, cap_export_to_import=True)).months[0]
+
+    assert capped.bill_after_rm == pytest.approx(plain.bill_after_rm)
+
+
 def test_self_consumption_capped_at_usage() -> None:
     m = _run(system_kwp=100.0).months[0]
     consumption = 1000.0 * 31 / (365.25 / 12)

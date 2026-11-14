@@ -1377,13 +1377,19 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "number",
-              "minimum": 0,
-              "description": "Credit for exported energy; 0 = conservative",
-              "default": 0.0,
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Flat credit for every exported kWh. Omit for Solar ATAP: domestic exports credited at the energy charge, up to that month's grid import",
               "title": "Export Rate Rm Per Kwh"
             },
-            "description": "Credit for exported energy; 0 = conservative"
+            "description": "Flat credit for every exported kWh. Omit for Solar ATAP: domestic exports credited at the energy charge, up to that month's grid import"
           },
           {
             "name": "cost_per_kwp_rm",
@@ -1516,13 +1522,19 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "number",
-              "minimum": 0,
-              "description": "Credit for exported energy; 0 = conservative",
-              "default": 0.0,
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Flat credit for every exported kWh. Omit for Solar ATAP: domestic exports credited at the energy charge, up to that month's grid import",
               "title": "Export Rate Rm Per Kwh"
             },
-            "description": "Credit for exported energy; 0 = conservative"
+            "description": "Flat credit for every exported kWh. Omit for Solar ATAP: domestic exports credited at the energy charge, up to that month's grid import"
           },
           {
             "name": "cost_per_kwp_rm",
@@ -2287,11 +2299,17 @@
             "default": 0.6
           },
           "export_rate_rm_per_kwh": {
-            "type": "number",
-            "minimum": 0.0,
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Export Rate Rm Per Kwh",
-            "description": "Credit for exported energy; 0 = conservative",
-            "default": 0.0
+            "description": "Flat credit for every exported kWh. Omit for Solar ATAP: domestic exports credited at the energy charge, up to that month's grid import"
           },
           "cost_per_kwp_rm": {
             "type": "number",
@@ -2858,6 +2876,33 @@
         ],
         "title": "DeviceResponse"
       },
+      "ExportCreditSummary": {
+        "properties": {
+          "scheme": {
+            "type": "string",
+            "enum": [
+              "solar_atap",
+              "flat_rate"
+            ],
+            "title": "Scheme"
+          },
+          "rate_rm_per_kwh": {
+            "type": "number",
+            "title": "Rate Rm Per Kwh"
+          },
+          "capped_at_grid_import": {
+            "type": "boolean",
+            "title": "Capped At Grid Import"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scheme",
+          "rate_rm_per_kwh",
+          "capped_at_grid_import"
+        ],
+        "title": "ExportCreditSummary"
+      },
       "FeasibilityReport": {
         "properties": {
           "site_id": {
@@ -2882,6 +2927,9 @@
           },
           "shading": {
             "$ref": "#/components/schemas/ShadingSummary"
+          },
+          "export_credit": {
+            "$ref": "#/components/schemas/ExportCreditSummary"
           },
           "system_kwp": {
             "type": "number",
@@ -2961,6 +3009,7 @@
           "location_lng",
           "consumption",
           "shading",
+          "export_credit",
           "system_kwp",
           "panel_count",
           "system_cost_rm",

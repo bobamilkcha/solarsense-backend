@@ -9,6 +9,7 @@ from app.modules.reports.excel import render_feasibility_xlsx
 from app.modules.reports.schemas import (
     AssumptionsParams,
     ConsumptionSummary,
+    ExportCreditSummary,
     FeasibilityReport,
     MonthBreakdown,
     ShadingSummary,
@@ -31,6 +32,9 @@ def _report(**overrides: Any) -> FeasibilityReport:
         ),
         "shading": ShadingSummary(
             source="satellite_only", complete_days=0, measured_ratio=None, applied_factor=1.0
+        ),
+        "export_credit": ExportCreditSummary(
+            scheme="solar_atap", rate_rm_per_kwh=0.2703, capped_at_grid_import=True
         ),
         "system_kwp": 5.5,
         "panel_count": 10,

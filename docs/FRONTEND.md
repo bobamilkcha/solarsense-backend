@@ -254,7 +254,7 @@ tweak assumptions:
 | `system_kwp` | auto-sized to cover yearly usage | system size |
 | `cost_per_kwp_rm` | 4000 | installed cost |
 | `self_consumption_ratio` | 0.6 | share of solar output used on-site |
-| `export_rate_rm_per_kwh` | 0 | credit for power exported to the grid |
+| `export_rate_rm_per_kwh` | omitted = Solar ATAP | flat credit (RM) for every exported kWh; omit for Solar ATAP |
 | `performance_ratio` | 0.8 | system losses |
 | `panel_wp` | 550 | panel size in watts |
 | `afa_rate_rm_per_kwh` | 0 | TNB monthly fuel adjustment |
@@ -268,7 +268,14 @@ Response highlights:
   bar chart of the bill with and without solar.
 - `shading.source`: `"device"` (measured) or `"satellite_only"` (no full
   device days yet, so no shading adjustment). Say which one in the UI.
-- `assumptions`: the values actually used (echoes the auto-sized `system_kwp`)
+- `export_credit`: how exports were credited. `scheme` is `"solar_atap"`
+  (domestic default: `rate_rm_per_kwh` 0.2703, the energy charge, and
+  `capped_at_grid_import` true, so only exported kWh up to that month's grid
+  use earn credit) or `"flat_rate"` (the rate sent, on every exported kWh).
+  Non-domestic sites under ATAP get `flat_rate` at 0, because ATAP's
+  non-domestic rate isn't modelled. Show the scheme next to the savings.
+- `assumptions`: the values actually used (echoes the auto-sized `system_kwp`;
+  `export_rate_rm_per_kwh` stays `null` under Solar ATAP)
 - `site_name`, `location_lat/lng`: for report headers
 
 **PDF export is the frontend's job** (e.g. `@react-pdf/renderer`), built from

@@ -7,7 +7,9 @@ average of the site's bills.
 
 Of each month's production, `self_consumption_ratio` is used on-site (offsets
 the bill at the full tariff); the rest is exported and credited at
-`export_rate`. The bill after solar is floored at zero.
+`export_rate`. With `cap_export_to_import` (Solar ATAP), only exported kWh up
+to that month's grid import earn credit. The bill after solar is floored at
+zero.
 """
 
 import math
@@ -23,6 +25,7 @@ class Assumptions:
     performance_ratio: float = 0.80  # inverter, wiring, soiling, heat losses
     self_consumption_ratio: float = 0.60  # share of production used on-site
     export_rate: float = 0.0  # RM/kWh credited for exported energy
+    cap_export_to_import: bool = False  # Solar ATAP: credit <= grid import
     cost_per_kwp: float = 4000.0  # RM, installed
     panel_wp: float = 550.0
     degradation_per_year: float = 0.005
@@ -108,9 +111,11 @@ def evaluate(
         production *= shading_factor
         self_used = min(production * a.self_consumption_ratio, consumption)
         exported = production - self_used
+        grid_import = consumption - self_used
+        credited = min(exported, grid_import) if a.cap_export_to_import else exported
 
         before = bill_for_kwh(consumption)
-        after = max(bill_for_kwh(consumption - self_used) - exported * a.export_rate, 0.0)
+        after = max(bill_for_kwh(grid_import) - credited * a.export_rate, 0.0)
         months.append(
             MonthResult(
                 month=month,

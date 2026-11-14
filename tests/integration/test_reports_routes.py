@@ -106,6 +106,33 @@ async def test_feasibility_recommends_size_when_omitted(
     assert body["annual_production_kwh"] == pytest.approx(body["annual_consumption_kwh"], rel=0.1)
 
 
+async def test_feasibility_defaults_to_solar_atap_for_domestic(
+    client: AsyncClient, db: AsyncSession, registered: dict[str, Any], fake_pvgis: None
+) -> None:
+    site = await _own_site(db, registered)
+    await _add_bill(db, site.id)
+    headers = _auth_headers(registered)
+
+    atap = (await client.get(f"/sites/{site.id}/feasibility", headers=headers)).json()
+    none = (
+        await client.get(
+            f"/sites/{site.id}/feasibility",
+            params={"export_rate_rm_per_kwh": 0},
+            headers=headers,
+        )
+    ).json()
+
+    assert atap["export_credit"] == {
+        "scheme": "solar_atap",
+        "rate_rm_per_kwh": pytest.approx(0.2703),
+        "capped_at_grid_import": True,
+    }
+    assert atap["assumptions"]["export_rate_rm_per_kwh"] is None
+    assert none["export_credit"]["scheme"] == "flat_rate"
+    assert none["export_credit"]["rate_rm_per_kwh"] == 0
+    assert atap["annual_savings_rm"] > none["annual_savings_rm"]
+
+
 async def test_feasibility_non_domestic_uses_effective_rate(
     client: AsyncClient, db: AsyncSession, registered: dict[str, Any], fake_pvgis: None
 ) -> None:
@@ -119,6 +146,12 @@ async def test_feasibility_non_domestic_uses_effective_rate(
 
     assert body["consumption"]["tariff_model"] == "flat_effective_rate"
     assert body["consumption"]["effective_rate_rm_per_kwh"] == pytest.approx(0.5)
+    # ATAP's non-domestic rate (system marginal price) isn't modelled: no credit
+    assert body["export_credit"] == {
+        "scheme": "flat_rate",
+        "rate_rm_per_kwh": 0,
+        "capped_at_grid_import": False,
+    }
 
 
 async def test_feasibility_applies_device_shading(

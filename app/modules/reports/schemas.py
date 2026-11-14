@@ -12,8 +12,13 @@ class AssumptionsParams(BaseModel):
     )
     performance_ratio: float = Field(default=0.80, gt=0, le=1)
     self_consumption_ratio: float = Field(default=0.60, ge=0, le=1)
-    export_rate_rm_per_kwh: float = Field(
-        default=0.0, ge=0, description="Credit for exported energy; 0 = conservative"
+    export_rate_rm_per_kwh: float | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Flat credit for every exported kWh. Omit for Solar ATAP: domestic exports "
+            "credited at the energy charge, up to that month's grid import"
+        ),
     )
     cost_per_kwp_rm: float = Field(default=4000.0, gt=0)
     panel_wp: float = Field(default=550.0, gt=0)
@@ -29,6 +34,16 @@ class ConsumptionSummary(BaseModel):
     # domestic_2025 = full TNB tariff rules; flat_effective_rate = RM/kWh from bills
     tariff_model: Literal["domestic_2025", "flat_effective_rate"]
     effective_rate_rm_per_kwh: float | None
+
+
+class ExportCreditSummary(BaseModel):
+    # solar_atap = TNB Solar ATAP (domestic): energy charge, capped at grid import;
+    # flat_rate = the requested export_rate_rm_per_kwh on every exported kWh
+    # (also used for non-domestic sites under ATAP, whose credit rate, the
+    # system marginal price, isn't modelled: 0 unless a rate is given).
+    scheme: Literal["solar_atap", "flat_rate"]
+    rate_rm_per_kwh: float
+    capped_at_grid_import: bool
 
 
 class ShadingSummary(BaseModel):
@@ -57,6 +72,7 @@ class FeasibilityReport(BaseModel):
     location_lng: float
     consumption: ConsumptionSummary
     shading: ShadingSummary
+    export_credit: ExportCreditSummary
     system_kwp: float
     panel_count: int
     system_cost_rm: float
