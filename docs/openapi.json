@@ -2554,6 +2554,17 @@
           "satellite_source": {
             "type": "string",
             "title": "Satellite Source"
+          },
+          "same_day": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SameDayBenchmark"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Device vs satellite for the same hours (weather-corrected). Null when no hour could be matched or the satellite service is unreachable."
           }
         },
         "type": "object",
@@ -2570,7 +2581,8 @@
           "satellite_avg_daily_irradiation_kwh_m2",
           "device_to_satellite_ratio",
           "reference_cell_isc_a",
-          "satellite_source"
+          "satellite_source",
+          "same_day"
         ],
         "title": "BenchmarkResponse",
         "description": "Pairs a site's own device measurements with PVGIS's satellite estimate.\n\nDevice readings are converted to irradiance using the reference cell's\nshort-circuit current (`reference_cell_isc_a`), then integrated per day so\nboth sides are in kWh/m^2/day. Only \"complete\" days (most of the daylight\nwindow covered by readings) count toward the device's daily average.\n\nPVGIS figures are for a horizontal surface, so the ratio is only\nmeaningful when the reference cell lies flat during measurement."
@@ -3815,6 +3827,121 @@
         ],
         "title": "ReportedStatus"
       },
+      "SameDayBenchmark": {
+        "properties": {
+          "ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ratio",
+            "description": "device / satellite; null if too little data"
+          },
+          "days": {
+            "type": "integer",
+            "title": "Days",
+            "description": "Days with at least one matched hour"
+          },
+          "hours": {
+            "type": "integer",
+            "title": "Hours",
+            "description": "Matched device hours"
+          },
+          "device_kwh_m2": {
+            "type": "number",
+            "title": "Device Kwh M2"
+          },
+          "satellite_kwh_m2": {
+            "type": "number",
+            "title": "Satellite Kwh M2"
+          },
+          "periods": {
+            "items": {
+              "$ref": "#/components/schemas/SameDayPeriod"
+            },
+            "type": "array",
+            "title": "Periods"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ratio",
+          "days",
+          "hours",
+          "device_kwh_m2",
+          "satellite_kwh_m2",
+          "periods",
+          "source"
+        ],
+        "title": "SameDayBenchmark",
+        "description": "Device vs satellite irradiance for the SAME hours, so weather cancels out.\n\nOnly daylight clock hours (07:00-19:00) the device covered almost fully are\nused, each compared with the satellite's figure for that hour. ~1.0 means\nno shading; well below 1.0 means local shading. `periods` shows when in the\nday it happens."
+      },
+      "SameDayPeriod": {
+        "properties": {
+          "period": {
+            "type": "string",
+            "enum": [
+              "morning",
+              "midday",
+              "afternoon"
+            ],
+            "title": "Period"
+          },
+          "start_hour": {
+            "type": "integer",
+            "title": "Start Hour"
+          },
+          "end_hour": {
+            "type": "integer",
+            "title": "End Hour"
+          },
+          "hours": {
+            "type": "integer",
+            "title": "Hours",
+            "description": "Matched device hours in this period"
+          },
+          "device_kwh_m2": {
+            "type": "number",
+            "title": "Device Kwh M2"
+          },
+          "satellite_kwh_m2": {
+            "type": "number",
+            "title": "Satellite Kwh M2"
+          },
+          "ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ratio",
+            "description": "device / satellite; null if too little data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "period",
+          "start_hour",
+          "end_hour",
+          "hours",
+          "device_kwh_m2",
+          "satellite_kwh_m2",
+          "ratio"
+        ],
+        "title": "SameDayPeriod",
+        "description": "Device vs satellite for one part of the day (local hours [start_hour, end_hour))."
+      },
       "SensorReadingResponse": {
         "properties": {
           "id": {
@@ -3955,6 +4082,7 @@
           "source": {
             "type": "string",
             "enum": [
+              "device_same_day",
               "device",
               "satellite_only"
             ],

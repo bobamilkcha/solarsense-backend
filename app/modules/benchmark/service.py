@@ -6,6 +6,7 @@ from app.models import Project, SensorReading, Site
 from app.modules.benchmark.client import PVGISError, fetch_monthly_irradiation_averages
 from app.modules.benchmark.exceptions import BenchmarkUnavailableError
 from app.modules.benchmark.irradiation import LOCAL_TZ, daily_irradiation
+from app.modules.benchmark.same_day import same_day_comparison
 from app.modules.benchmark.schemas import BenchmarkResponse
 from app.modules.readings.exceptions import SiteNotFoundError
 from app.modules.readings.irradiance import irradiance_wm2
@@ -68,6 +69,10 @@ class BenchmarkService:
             device_daily / satellite_daily if device_daily is not None and satellite_daily else None
         )
 
+        same_day = await same_day_comparison(
+            self.db, float(site.location_lat), float(site.location_lng), samples
+        )
+
         return BenchmarkResponse(
             site_id=site.id,
             month=target_month,
@@ -82,6 +87,7 @@ class BenchmarkService:
             device_to_satellite_ratio=ratio,
             reference_cell_isc_a=isc,
             satellite_source="PVGIS-ERA5",
+            same_day=same_day,
         )
 
     async def _month_readings(self, site_id: uuid.UUID, month: int):

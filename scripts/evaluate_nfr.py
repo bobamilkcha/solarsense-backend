@@ -188,7 +188,11 @@ def main() -> None:
     for d in all_days:
         sat = satellite.get(d.day)
         sat_text = f"{sat:.2f}" if sat is not None else " n/a"
-        note = "" if d.is_complete else "  (skipped: under 90% of 07:00-19:00 covered)"
+        note = (
+            ""
+            if d.is_complete
+            else "  (skipped: under 90% of 07:00-19:00 covered, or a gap in 09:00-16:00)"
+        )
         print(
             f"    {d.day}  coverage {d.daylight_coverage:4.0%}  device {d.kwh_m2:.2f}"
             f"  satellite {sat_text} kWh/m^2{note}"

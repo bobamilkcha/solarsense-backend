@@ -5,6 +5,7 @@ from app.core.config.app_config import app_config
 from app.models import Project, SensorReading, Site, TNBBill
 from app.modules.benchmark.client import PVGISError, fetch_monthly_irradiation_averages
 from app.modules.benchmark.irradiation import daily_irradiation
+from app.modules.benchmark.same_day import same_day_comparison
 from app.modules.readings.exceptions import SiteNotFoundError
 from app.modules.readings.irradiance import irradiance_wm2
 from app.modules.reports import feasibility as fz
@@ -65,7 +66,7 @@ class ReportsService:
         except PVGISError as exc:
             raise IrradiationUnavailableError from exc
 
-        shading = await self._shading(site_id, irradiation)
+        shading = await self._shading(site, irradiation)
         export_credit = _export_credit(params, consumption)
 
         a = fz.Assumptions(
@@ -184,16 +185,28 @@ class ReportsService:
         )
         return summary, bill_for_kwh
 
-    async def _shading(self, site_id: uuid.UUID, irradiation: dict[int, float]) -> ShadingSummary:
+    async def _shading(self, site: Site, irradiation: dict[int, float]) -> ShadingSummary:
         isc = app_config.REFERENCE_CELL_ISC_A
         rows = (
             await self.db.execute(
                 select(SensorReading.device_timestamp, SensorReading.cell_current).where(
-                    SensorReading.site_id == site_id
+                    SensorReading.site_id == site.id
                 )
             )
         ).all()
         samples = [(ts, irradiance_wm2(float(current), isc)) for ts, current in rows]
+
+        # Preferred: same-hour satellite comparison, which isn't fooled by a rainy week.
+        same_day = await same_day_comparison(
+            self.db, float(site.location_lat), float(site.location_lng), samples
+        )
+        if same_day is not None and same_day.ratio is not None:
+            return ShadingSummary(
+                source="device_same_day",
+                complete_days=same_day.days,
+                measured_ratio=same_day.ratio,
+                applied_factor=min(same_day.ratio, 1.0),
+            )
 
         ratios = []
         for day in daily_irradiation(samples):

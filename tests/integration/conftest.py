@@ -83,6 +83,19 @@ async def client(db: AsyncSession) -> AsyncGenerator[AsyncClient]:
     app.dependency_overrides.clear()
 
 
+@pytest.fixture(autouse=True)
+def no_open_meteo(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests never call the real satellite API: by default it has no data.
+
+    Tests of the same-day comparison override this with their own fake.
+    """
+
+    async def _no_data(*_args: Any, **_kwargs: Any) -> dict:
+        return {}
+
+    monkeypatch.setattr("app.modules.benchmark.open_meteo.fetch_hourly_ghi", _no_data)
+
+
 DEFAULT_EMAIL = "user@example.com"
 DEFAULT_PASSWORD = "supersecret"
 

@@ -249,8 +249,30 @@ compares the device's measurements with satellite expectations for that month:
 - `device_to_satellite_ratio`: **~1.0 means the site gets the expected
   sunlight; well below 1.0 suggests shading.** This is the headline number.
 - `device_complete_days`: only full days of data count (≥ 90% of 07:00–19:00
-  covered). If it's 0, the device hasn't run a full day yet and the
-  device-side fields are `null`. Show "collecting data" instead of a ratio.
+  covered, and no gap over 30 min between 09:00 and 16:00). If it's 0, the
+  device hasn't run a full day yet and the device-side fields are `null`.
+  Show "collecting data" instead of a ratio.
+
+**`same_day` (preferred headline, may be `null`)**: the ratio above compares
+against a long-term *average* month, so a rainy week looks like shading.
+`same_day` compares each daylight hour the device fully measured with the
+satellite's figure for **that same hour** (Open-Meteo / Himawari), so weather
+cancels out. Show `same_day.ratio` as the shading number when present and the
+long-term ratio as secondary context.
+
+- `ratio`: device / satellite over all matched hours. ~1.0 = no shading.
+  `null` if too little data.
+- `days`, `hours`: how much data it's based on. Show it ("based on 42 hours
+  over 6 days").
+- `periods[]`: the same ratio for `morning` (07–11), `midday` (11–14) and
+  `afternoon` (14–19), each with `hours`, `device_kwh_m2`,
+  `satellite_kwh_m2`, `ratio` (`null` if too little data). **This shows when
+  the site is shaded**, e.g. a low morning ratio means something blocks the
+  morning sun on the east side.
+- `same_day` itself is `null` when no hour could be matched yet or the
+  satellite service is unreachable; fall back to the long-term ratio.
+- Satellite data lags ~30 min, and the last ~3 hours aren't used yet, so
+  today's afternoon appears later.
 
 ### TNB bills
 
@@ -286,8 +308,11 @@ Response highlights:
 - `avg_monthly_bill_before_rm` / `avg_monthly_bill_after_rm`
 - `months[]`: 12 rows of production, bill before/after and savings. Good for a
   bar chart of the bill with and without solar.
-- `shading.source`: `"device"` (measured) or `"satellite_only"` (no full
-  device days yet, so no shading adjustment). Say which one in the UI.
+- `shading.source`: `"device_same_day"` (device vs satellite for the same
+  hours, weather-corrected; `complete_days` = days with matched hours),
+  `"device"` (complete device days vs the long-term average; used when the
+  same-day comparison isn't available) or `"satellite_only"` (no usable
+  device data, so no shading adjustment). Say which one in the UI.
 - `export_credit`: how exports were credited. `scheme` is `"solar_atap"`
   (domestic default: `rate_rm_per_kwh` 0.2703, the energy charge, and
   `capped_at_grid_import` true, so only exported kWh up to that month's grid

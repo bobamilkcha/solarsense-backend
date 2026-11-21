@@ -1,6 +1,39 @@
 import uuid
+from typing import Literal
 
 from pydantic import BaseModel, Field
+
+PeriodName = Literal["morning", "midday", "afternoon"]
+
+
+class SameDayPeriod(BaseModel):
+    """Device vs satellite for one part of the day (local hours [start_hour, end_hour))."""
+
+    period: PeriodName
+    start_hour: int
+    end_hour: int
+    hours: int = Field(description="Matched device hours in this period")
+    device_kwh_m2: float
+    satellite_kwh_m2: float
+    ratio: float | None = Field(description="device / satellite; null if too little data")
+
+
+class SameDayBenchmark(BaseModel):
+    """Device vs satellite irradiance for the SAME hours, so weather cancels out.
+
+    Only daylight clock hours (07:00-19:00) the device covered almost fully are
+    used, each compared with the satellite's figure for that hour. ~1.0 means
+    no shading; well below 1.0 means local shading. `periods` shows when in the
+    day it happens.
+    """
+
+    ratio: float | None = Field(description="device / satellite; null if too little data")
+    days: int = Field(description="Days with at least one matched hour")
+    hours: int = Field(description="Matched device hours")
+    device_kwh_m2: float
+    satellite_kwh_m2: float
+    periods: list[SameDayPeriod]
+    source: str
 
 
 class BenchmarkResponse(BaseModel):
@@ -30,3 +63,9 @@ class BenchmarkResponse(BaseModel):
     device_to_satellite_ratio: float | None
     reference_cell_isc_a: float
     satellite_source: str
+    same_day: SameDayBenchmark | None = Field(
+        description=(
+            "Device vs satellite for the same hours (weather-corrected). Null when no "
+            "hour could be matched or the satellite service is unreachable."
+        )
+    )

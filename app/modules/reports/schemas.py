@@ -47,9 +47,12 @@ class ExportCreditSummary(BaseModel):
 
 
 class ShadingSummary(BaseModel):
-    # "device" = measured vs satellite on complete days; "satellite_only" = no
-    # complete device days yet, so no shading adjustment applied.
-    source: Literal["device", "satellite_only"]
+    # "device_same_day" = device vs satellite irradiance for the same hours
+    # (weather-corrected; complete_days = days with matched hours);
+    # "device" = complete device days vs PVGIS long-term average (fallback when
+    # same-day satellite data is unavailable); "satellite_only" = no usable
+    # device data, so no shading adjustment applied.
+    source: Literal["device_same_day", "device", "satellite_only"]
     complete_days: int
     measured_ratio: float | None
     applied_factor: float  # measured_ratio capped at 1.0

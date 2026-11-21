@@ -144,9 +144,18 @@ _Last updated: 2026-10-22_
   all past readings. Exposed as `irradiance_wm2` on `GET /sites/{id}/readings`
 - Benchmark integrates each Malaysian-time day's readings (trapezoid rule,
   gaps >30 min not bridged) into kWh/m^2/day. Only days with >=90% of
-  07:00-19:00 covered count, so a short session doesn't look like a shaded
-  site. Returns device vs satellite daily irradiation and their ratio
-  (`device_to_satellite_ratio`: ~1.0 = as expected, well below = shading)
+  07:00-19:00 covered and no gap >30 min in 09:00-16:00 count, so a short
+  session or a midday dropout doesn't look like a shaded site. Returns device
+  vs satellite daily irradiation and their ratio (`device_to_satellite_ratio`:
+  ~1.0 = as expected, well below = shading)
+- Same-day (weather-corrected) benchmark: each daylight clock hour the device
+  covered >=90% of is compared with Open-Meteo's satellite irradiance
+  (Himawari) for that same hour, so a rainy week no longer reads as shading.
+  Also split into morning / midday / afternoon to show when shading happens.
+  Satellite hours are cached in `satellite_irradiance` (per location rounded
+  to 0.01 deg) so past days are fetched once; if Open-Meteo is down the
+  comparison uses the cache or is omitted. Open-Meteo's free API is
+  non-commercial only: a commercial deployment needs their paid plan
 - PVGIS failures surface as `502` (`BenchmarkUnavailableError`) rather than
   taking the request down
 - Fully tested (PVGIS client unit-tested via `httpx.MockTransport`, no real
@@ -192,8 +201,9 @@ _Last updated: 2026-10-22_
   (one after excluding a late-payment surcharge, which isn't tariff).
   Non-domestic bills fall back to a flat RM/kWh rate derived from the bills'
   `current_charges`
-- Shading factor = average of device/satellite ratio over complete days
-  (capped at 1.0); with no complete days, satellite-only (factor 1.0)
+- Shading factor = same-day device/satellite ratio (capped at 1.0) when
+  available; otherwise the average device/long-term-satellite ratio over
+  complete days; with neither, satellite-only (factor 1.0)
 - Overridable query params with defaults: `system_kwp` (omit = sized to cover
   annual usage), `performance_ratio` 0.8, `self_consumption_ratio` 0.6,
   `export_rate_rm_per_kwh` (omit = Solar ATAP: domestic exports credited at

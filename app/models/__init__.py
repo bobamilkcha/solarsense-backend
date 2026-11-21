@@ -5,6 +5,7 @@ from app.models.enums import ChecklistItemStatus, UserRole, VisitStatus
 from app.models.invitation import Invitation
 from app.models.project import Project
 from app.models.refresh_token import RefreshToken
+from app.models.satellite_irradiance import SatelliteIrradiance
 from app.models.sensor_reading import SensorReading
 from app.models.site import Site
 from app.models.site_visit import ChecklistItem, SiteVisit
@@ -21,6 +22,7 @@ __all__ = [
     "Invitation",
     "Project",
     "RefreshToken",
+    "SatelliteIrradiance",
     "Site",
     "SensorReading",
     "TNBBill",
