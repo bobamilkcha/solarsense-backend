@@ -18,6 +18,7 @@ from app.modules.bills.service import BILLS_BUCKET
 from app.modules.devices.exceptions import DevicesError
 from app.modules.devices.router import router as devices_router
 from app.modules.devices.router import sites_router as devices_sites_router
+from app.modules.devices.service import DevicesService
 from app.modules.projects.exceptions import ProjectsError
 from app.modules.projects.router import router as projects_router
 from app.modules.projects.router import sites_router as projects_sites_router
@@ -108,7 +109,7 @@ async def visits_error_handler(_: Request, exc: VisitsError) -> JSONResponse:
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 
-@app.get("/health", tags=["health"], include_in_schema=False)
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["health"], include_in_schema=False)
 async def health(request: Request, db: DBSession) -> JSONResponse:
     """Liveness for Docker and uptime monitors. 503 only if the database is unreachable.
 
@@ -124,6 +125,26 @@ async def health(request: Request, db: DBSession) -> JSONResponse:
     mqtt_client = getattr(request.app.state, "mqtt", None)
     connected = bool(mqtt_client and mqtt_client.is_connected())
     return JSONResponse(content={"status": "ok", "database": True, "mqtt": connected})
+
+
+@app.api_route(
+    "/health/readings", methods=["GET", "HEAD"], tags=["health"], include_in_schema=False
+)
+async def health_readings(db: DBSession) -> JSONResponse:
+    """For an external uptime monitor: 503 if any paired site has stopped getting readings.
+
+    Kept separate from /health on purpose: the Docker healthcheck uses /health,
+    and restarting the API doesn't help a device that is unplugged or offline.
+    Only counts are returned, since this endpoint is unauthenticated.
+    """
+    freshness = await DevicesService(db).reading_freshness(app_config.READINGS_STALE_AFTER_S)
+    body = {
+        "status": "stale" if freshness.stale else "ok",
+        "monitored": freshness.monitored,
+        "stale": freshness.stale,
+        "waiting": freshness.waiting,
+    }
+    return JSONResponse(status_code=503 if freshness.stale else 200, content=body)
 
 
 app.add_middleware(LoggingMiddleware)

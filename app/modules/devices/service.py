@@ -1,9 +1,10 @@
 import uuid
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
-from app.models import Device, Project, Site
+from app.models import Device, Project, SensorReading, Site
 from app.modules.devices.exceptions import (
     DeviceAlreadyPairedError,
     DeviceNotFoundError,
@@ -25,9 +26,47 @@ class ConfigPublisher(Protocol):
     def publish_config(self, device_id: str, config: dict[str, int]) -> bool: ...
 
 
+@dataclass(frozen=True)
+class ReadingFreshness:
+    """Counts over sites that have a device paired. `waiting` = no reading yet."""
+
+    monitored: int
+    stale: int
+    waiting: int
+
+
 class DevicesService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+
+    async def reading_freshness(self, stale_after_s: int) -> ReadingFreshness:
+        """Is every paired site still receiving readings?
+
+        A site is stale when its newest reading arrived more than `stale_after_s`
+        ago, or 3x its device's reported publish interval if that is longer (so a
+        device set to publish hourly isn't flagged between readings). Sites that
+        have never had a reading are only counted as waiting, so pairing a device
+        before it is installed doesn't raise an alert.
+        """
+        stmt = (
+            select(Device.reported_publish_interval_s, func.max(SensorReading.received_at))
+            .select_from(Site)
+            .outerjoin(Device, Device.id == Site.device_id)
+            .outerjoin(SensorReading, SensorReading.site_id == Site.id)
+            .where(Site.device_id.is_not(None))
+            .group_by(Site.id, Device.reported_publish_interval_s)
+        )
+        rows = (await self.db.execute(stmt)).all()
+        now = datetime.now(UTC)
+        stale = waiting = 0
+        for interval_s, last_received in rows:
+            if last_received is None:
+                waiting += 1
+                continue
+            limit_s = max(stale_after_s, 3 * (interval_s or 0))
+            if now - last_received > timedelta(seconds=limit_s):
+                stale += 1
+        return ReadingFreshness(monitored=len(rows), stale=stale, waiting=waiting)
 
     async def mark_seen(self, device_id: str, rssi: int | None) -> None:
         """Record that a device just published (called for every MQTT message)."""

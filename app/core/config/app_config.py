@@ -92,6 +92,10 @@ class AppConfig(BaseConfig):
     # added per process so several workers don't kick each other off the broker,
     # and so it can never equal a device ID ("solarsense-<12 hex>").
     MQTT_CLIENT_ID_PREFIX: str = "backend-solarsense"
+    # GET /health/readings fails (503) once a paired site's newest reading is older
+    # than this many seconds, or 3x the device's reported publish interval if that
+    # is longer. Meant for an external uptime monitor, not the Docker healthcheck.
+    READINGS_STALE_AFTER_S: int = Field(default=900, ge=60)
 
     @property
     def mqtt_session_expiry_s(self) -> int:
