@@ -38,3 +38,8 @@ class ExportTooLargeError(ReadingsError):
 class InvalidDateRangeError(ReadingsError):
     status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     detail = "start must be before end"
+
+
+class SeriesTooLargeError(ReadingsError):
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
+    detail = "Too many buckets for this date range; use a larger bucket_s or a shorter range"

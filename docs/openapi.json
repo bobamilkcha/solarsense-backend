@@ -721,6 +721,99 @@
         }
       }
     },
+    "/sites/{site_id}/readings/series": {
+      "get": {
+        "tags": [
+          "readings"
+        ],
+        "summary": "Reading Series",
+        "description": "Readings averaged into time buckets plus exact range totals, for history charts.",
+        "operationId": "reading_series_sites__site_id__readings_series_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Site Id"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Inclusive, ISO 8601 with offset",
+              "title": "Start"
+            },
+            "description": "Inclusive, ISO 8601 with offset"
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Exclusive, ISO 8601 with offset",
+              "title": "End"
+            },
+            "description": "Exclusive, ISO 8601 with offset"
+          },
+          {
+            "name": "bucket_s",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 86400,
+                  "minimum": 60
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Bucket width in seconds; omit to pick automatically",
+              "title": "Bucket S"
+            },
+            "description": "Bucket width in seconds; omit to pick automatically"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadingSeriesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/sites/{site_id}/readings/export": {
       "get": {
         "tags": [
@@ -3380,6 +3473,301 @@
         },
         "type": "object",
         "title": "ProjectUpdateRequest"
+      },
+      "ReadingBucket": {
+        "properties": {
+          "bucket_start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Bucket Start",
+            "description": "Start of the bucket (inclusive)"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "Readings in this bucket"
+          },
+          "irradiance_avg_wm2": {
+            "type": "number",
+            "title": "Irradiance Avg Wm2"
+          },
+          "irradiance_max_wm2": {
+            "type": "number",
+            "title": "Irradiance Max Wm2"
+          },
+          "cell_voltage_avg": {
+            "type": "number",
+            "title": "Cell Voltage Avg"
+          },
+          "ambient_temp_avg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ambient Temp Avg"
+          },
+          "ambient_temp_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ambient Temp Min"
+          },
+          "ambient_temp_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ambient Temp Max"
+          },
+          "humidity_avg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Humidity Avg"
+          },
+          "humidity_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Humidity Min"
+          },
+          "humidity_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Humidity Max"
+          },
+          "tilt_deg_avg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tilt Deg Avg"
+          },
+          "rssi_avg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rssi Avg"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bucket_start",
+          "count",
+          "irradiance_avg_wm2",
+          "irradiance_max_wm2",
+          "cell_voltage_avg",
+          "ambient_temp_avg",
+          "ambient_temp_min",
+          "ambient_temp_max",
+          "humidity_avg",
+          "humidity_min",
+          "humidity_max",
+          "tilt_deg_avg",
+          "rssi_avg"
+        ],
+        "title": "ReadingBucket",
+        "description": "Readings averaged over one time bucket. Buckets with no readings are omitted."
+      },
+      "ReadingSeriesResponse": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          },
+          "bucket_s": {
+            "type": "integer",
+            "title": "Bucket S",
+            "description": "Bucket width in seconds (chosen automatically if not sent)"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/ReadingSeriesSummary"
+          },
+          "buckets": {
+            "items": {
+              "$ref": "#/components/schemas/ReadingBucket"
+            },
+            "type": "array",
+            "title": "Buckets"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "bucket_s",
+          "summary",
+          "buckets"
+        ],
+        "title": "ReadingSeriesResponse"
+      },
+      "ReadingSeriesSummary": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "first_reading_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Reading At"
+          },
+          "last_reading_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Reading At"
+          },
+          "irradiance_max_wm2": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Irradiance Max Wm2"
+          },
+          "ambient_temp_avg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ambient Temp Avg"
+          },
+          "ambient_temp_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ambient Temp Min"
+          },
+          "ambient_temp_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ambient Temp Max"
+          },
+          "humidity_avg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Humidity Avg"
+          },
+          "humidity_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Humidity Min"
+          },
+          "humidity_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Humidity Max"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "first_reading_at",
+          "last_reading_at",
+          "irradiance_max_wm2",
+          "ambient_temp_avg",
+          "ambient_temp_min",
+          "ambient_temp_max",
+          "humidity_avg",
+          "humidity_min",
+          "humidity_max"
+        ],
+        "title": "ReadingSeriesSummary",
+        "description": "Exact figures over the whole range (not derived from the buckets)."
       },
       "ReportedStatus": {
         "properties": {

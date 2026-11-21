@@ -216,6 +216,26 @@ What happens:
   total count is returned.
 - There's no websocket or push. **Poll** for a live view (e.g. every 30–60 s;
   match it to the firmware's send interval).
+- **For history charts use `GET /sites/{id}/readings/series?start=&end=`**
+  (start inclusive, end exclusive, both required, send them with an offset,
+  e.g. `2026-11-15T00:00:00+08:00`). The backend averages readings into time
+  buckets, so any range (a day, 7 days, 30 days) comes back in one request
+  with no 20,000-reading cap. Response:
+  - `bucket_s`: bucket width in seconds. Picked automatically (1 min for a
+    few hours, 5 min for a day, 15 min for 7 days, 1 h for 30 days) unless you
+    send `bucket_s` (60–86400). 422 if the range would need more than 5000
+    buckets.
+  - `buckets[]`: `bucket_start`, `count`, `irradiance_avg_wm2`,
+    `irradiance_max_wm2`, `cell_voltage_avg`, `ambient_temp_avg/min/max`,
+    `humidity_avg/min/max`, `tilt_deg_avg`, `rssi_avg`. Buckets are aligned to
+    `start` (send local midnight for buckets on Malaysian day boundaries).
+    **Empty buckets are left out**: when the gap between two `bucket_start`s
+    is more than `bucket_s`, the device was offline, so break the line there
+    instead of joining across it.
+  - `summary`: exact figures over the whole range for the stat tiles:
+    `count`, `first_reading_at`, `last_reading_at`, `irradiance_max_wm2`,
+    `ambient_temp_avg/min/max`, `humidity_avg/min/max`. Fields are `null` when
+    there are no readings.
 - `GET /sites/{id}/readings/export?format=csv|xlsx&start=&end=` downloads a
   file (start inclusive, end exclusive). Send it with the Bearer header and
   save the blob; a plain `<a href>` won't carry the token.
@@ -338,8 +358,6 @@ invalidates the old link. An invalid token returns 400.
 
 - No `GET` for a single project or site. Use the list endpoints and filter.
 - No editing or deleting bills.
-- No readings aggregation (hourly or daily averages). Charts must use raw
-  readings (max 1000 per request).
 - No pagination totals on the readings list.
 - No websocket or live push. Poll instead.
 - No photo uploads on visits.

@@ -115,3 +115,44 @@ class SensorReadingResponse(BaseModel):
             return None
         cos_tilt = math.cos(math.radians(self.roll)) * math.cos(math.radians(self.pitch))
         return round(math.degrees(math.acos(max(-1.0, min(1.0, cos_tilt)))), 2)
+
+
+class ReadingBucket(BaseModel):
+    """Readings averaged over one time bucket. Buckets with no readings are omitted."""
+
+    bucket_start: datetime = Field(description="Start of the bucket (inclusive)")
+    count: int = Field(description="Readings in this bucket")
+    irradiance_avg_wm2: float
+    irradiance_max_wm2: float
+    cell_voltage_avg: float
+    ambient_temp_avg: float | None
+    ambient_temp_min: float | None
+    ambient_temp_max: float | None
+    humidity_avg: float | None
+    humidity_min: float | None
+    humidity_max: float | None
+    tilt_deg_avg: float | None
+    rssi_avg: float | None
+
+
+class ReadingSeriesSummary(BaseModel):
+    """Exact figures over the whole range (not derived from the buckets)."""
+
+    count: int
+    first_reading_at: datetime | None
+    last_reading_at: datetime | None
+    irradiance_max_wm2: float | None
+    ambient_temp_avg: float | None
+    ambient_temp_min: float | None
+    ambient_temp_max: float | None
+    humidity_avg: float | None
+    humidity_min: float | None
+    humidity_max: float | None
+
+
+class ReadingSeriesResponse(BaseModel):
+    start: datetime
+    end: datetime
+    bucket_s: int = Field(description="Bucket width in seconds (chosen automatically if not sent)")
+    summary: ReadingSeriesSummary
+    buckets: list[ReadingBucket]

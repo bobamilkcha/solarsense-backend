@@ -34,6 +34,24 @@ async def list_readings(
     )
 
 
+@router.get("/{site_id}/readings/series", response_model=schemas.ReadingSeriesResponse)
+async def reading_series(
+    site_id: uuid.UUID,
+    current_user: CurrentUser,
+    service: ReadingsServiceDep,
+    start: Annotated[datetime, Query(description="Inclusive, ISO 8601 with offset")],
+    end: Annotated[datetime, Query(description="Exclusive, ISO 8601 with offset")],
+    bucket_s: Annotated[
+        int | None,
+        Query(ge=60, le=86400, description="Bucket width in seconds; omit to pick automatically"),
+    ] = None,
+):
+    """Readings averaged into time buckets plus exact range totals, for history charts."""
+    return await service.reading_series(
+        site_id, company_scope(current_user), start=start, end=end, bucket_s=bucket_s
+    )
+
+
 @router.get(
     "/{site_id}/readings/export",
     response_class=Response,
